@@ -122,64 +122,24 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
       // to the client (previously this code was collected but never checked
       // against anything, so any value was accepted).
       if (role === 'Lecturer') {
-        let userId;
-
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: emailForAuth,
-          password,
-          options: {
-            data: {
-              full_name: name,
-              role: 'Lecturer',
-              student_id: studentId
-            }
-          }
-        });
-
-        if (authError) {
-          if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
-            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-              email: emailForAuth,
-              password
-            });
-            if (loginError) {
-              throw new Error('User exists but login failed: ' + loginError.message);
-            }
-            userId = loginData.user.id;
-          } else {
-            throw authError;
-          }
-        } else {
-          userId = authData?.user?.id;
-        }
-
-        if (!userId) {
-          throw new Error('Failed to create or retrieve user ID.');
-        }
-
+        console.log('Invoking admin-provision-user for Lecturer signup...');
         const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-provision-user', {
-          body: { email: emailForAuth, userId: userId, role: 'Lecturer', accessCode: accessCode },
+          body: { action: 'lecturer-signup', name, email: emailForAuth, password, accessCode },
         });
 
         if (fnError || fnData?.error) {
-          throw new Error(fnData?.error || fnError?.message || 'Invalid or expired access code.');
+          console.error('Edge Function error:', fnError || fnData?.error);
+          throw new Error(fnData?.error || fnError?.message || 'Failed to create Lecturer account. Check access code.');
         }
 
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: userId,
-          full_name: name,
+        const { error: loginError } = await supabase.auth.signInWithPassword({
           email: emailForAuth,
-          role: 'Lecturer',
-          student_id: studentId,
-          created_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-
-        if (profileError) throw profileError;
-        
-        await supabase.auth.signInWithPassword({
-          email: emailForAuth,
-          password
+          password,
         });
+        if (loginError) {
+          console.error('Login after Lecturer signup failed:', loginError);
+          throw loginError;
+        }
 
         setSuccessMsg('Registration successful. Redirecting...');
         setTimeout(() => {
@@ -204,18 +164,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
         if (!profile) {
-           const { error: profileError } = await supabase.from('profiles').upsert({
-            id: loginData.user.id,
-            full_name: name,
-            email: emailForAuth,
-            role: role,
-            portal: role === 'Student' ? portal : null,
-            university: role === 'Student' ? university : null,
-            course: role === 'Student' ? course : null,
-            student_id: studentId,
-            created_at: new Date().toISOString()
-          }, { onConflict: 'id' });
-          if (profileError) throw profileError;
+           throw new Error('Database Error: Profile missing for existing user.');
         }
         
         setSuccessMsg('Logged in successfully. Redirecting...');
@@ -226,6 +175,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         return;
       }
 
+      console.log('Signing up Student...', { emailForAuth });
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailForAuth,
         password,
@@ -253,17 +203,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
             
             const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
             if (!profile) {
-              await supabase.from('profiles').upsert({
-                id: loginData.user.id,
-                full_name: name,
-                email: emailForAuth,
-                role: role,
-                portal: role === 'Student' ? portal : null,
-                university: role === 'Student' ? university : null,
-                course: role === 'Student' ? course : null,
-                student_id: studentId,
-                created_at: new Date().toISOString()
-              }, { onConflict: 'id' });
+              throw new Error('Database Error: Profile missing for existing user.');
             }
             setSuccessMsg('Logged in successfully. Redirecting...');
             setTimeout(() => {
@@ -275,8 +215,11 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
          throw authError;
       }
 
-      let sessionToUse = authData.session;
+      // 6. wait until authentication has completed
+      console.log('Waiting for authentication to complete...');
       
+      // We ensure they are logged in by attempting a sign-in if session is missing.
+      let sessionToUse = authData.session;
       if (!sessionToUse && authData.user) {
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
             email: emailForAuth,
@@ -289,52 +232,49 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
       }
 
       if (!sessionToUse) {
-        setSuccessMsg('Setting up your profile...');
-        
-        sessionToUse = await new Promise((resolve) => {
-          let sub: any;
-          const timeout = setTimeout(() => {
-             sub?.unsubscribe();
-             resolve(null);
-          }, 30000);
-           const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN' && session) {
-              clearTimeout(timeout);
-              subscription.unsubscribe();
-              resolve(session);
-            }
-          });
-          sub = subscription;
-        });
+        throw new Error('Failed to establish session after signup. Email confirmation might be required.');
       }
 
-      const userId = sessionToUse?.user?.id || authData?.user?.id;
+      // 6. call auth.getUser() and verify auth.uid() exists
+      const { data: { user: currentUser }, error: getUserError } = await supabase.auth.getUser();
       
-      if (userId) {
-        
-        const { error: profileError } = await supabase.from('profiles').upsert({
-          id: userId,
-          full_name: name,
-          email: emailForAuth,
-          role: role,
-          portal: role === 'Student' ? portal : null,
-          university: role === 'Student' ? university : null,
-          course: role === 'Student' ? course : null,
-          student_id: studentId,
-          created_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-
-        if (profileError) {
-          throw new Error('Database Error: ' + profileError.message);
-        }
-
-        setSuccessMsg('Registration successful. Redirecting...');
-        setTimeout(() => {
-          if (onSuccess && isMounted.current) onSuccess(role);
-        }, 1500);
-      } else {
-        throw new Error('Failed to create user session.');
+      if (getUserError || !currentUser?.id) {
+         throw new Error('Authentication incomplete. Cannot create profile.');
       }
+
+      const userId = currentUser.id;
+      
+      console.log('Frontend Profile Insert Location reached.', { userId });
+      
+      // 6. insert using id = auth.uid()
+      const profilePayload = {
+        id: userId,
+        full_name: name,
+        email: emailForAuth,
+        role: role,
+        portal: role === 'Student' ? portal : null,
+        university: role === 'Student' ? university : null,
+        course: role === 'Student' ? course : null,
+        student_id: studentId,
+        created_at: new Date().toISOString()
+      };
+      
+      console.log('Inserting profile payload:', profilePayload);
+
+      const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
+
+      if (profileError) {
+        console.error('Supabase profile insert error:', profileError);
+        console.error('RLS error details:', profileError.details || profileError.message);
+        throw new Error('Database Error: ' + profileError.message);
+      }
+      
+      console.log('Student profile inserted successfully!');
+      
+      setSuccessMsg('Registration successful. Redirecting...');
+      setTimeout(() => {
+        if (onSuccess && isMounted.current) onSuccess(role);
+      }, 1500);
     } catch (error: any) {
       let msg = error.message || 'Failed to create account.';
       
