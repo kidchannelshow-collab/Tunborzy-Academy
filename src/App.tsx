@@ -1,0 +1,298 @@
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import FloatingNotificationButton from "./components/FloatingNotificationButton";
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { useState } from 'react';
+import Navbar from './components/Navbar';
+import Hero from './components/Hero';
+import Portals from './components/Portals';
+import Features from './components/Features';
+import Testimonials from './components/Testimonials';
+import Footer from './components/Footer';
+import SignUp from './components/SignUp';
+import StudentDashboard from './components/StudentDashboard';
+
+import Login from './components/Login';
+
+import MyCoursesPage from './components/MyCoursesPage';
+import CourseChatSystem from './components/CourseChatSystem';
+import ResourceLibraryPage from './components/ResourceLibraryPage';
+import CBTPracticePage from './components/CBTPracticePage';
+import PastQuestionsPage from './components/PastQuestionsPage';
+
+import RevisionModePage from './components/RevisionModePage';
+import PerformanceAnalyticsPage from './components/PerformanceAnalyticsPage';
+
+import StudentProfilePage from './components/StudentProfilePage';
+import SettingsPage from './components/SettingsPage';
+
+import LecturerDashboard from './components/LecturerDashboard';
+import DashboardLayout from "./components/dashboard/DashboardLayout";
+import AdminDashboard from './components/AdminDashboard';
+import AnnouncementCenter from './components/AnnouncementCenter';
+import TunborzyAI from './components/TunborzyAI';
+import GlobalSearch from './components/GlobalSearch';
+import HelpSupportPage from './components/HelpSupportPage';
+import { useEffect } from 'react';
+import { supabase } from './supabaseClient';
+import { useProfile, getProfileCache } from './lib/useProfile';
+
+export default function App() {
+  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'courses' | 'chats' | 'cbt' | 'past-questions' | 'resources' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  
+  const { profile: userProfile, loading: isLoadingSession } = useProfile();
+
+  const isAllowed = (role: string, view: string) => {
+    if (role === 'Student' && (view === 'admin_dashboard' || view === 'lecturer_dashboard')) return false;
+    // Lecturer should be allowed to view dashboard temporarily? No, they have lecturer_dashboard
+    if (role === 'Lecturer' && (view === 'admin_dashboard' || view === 'dashboard')) return false;
+    if (role === 'Admin' && (view === 'dashboard' || view === 'lecturer_dashboard')) return false;
+    return true;
+  };
+
+  useEffect(() => {
+    if (isLoadingSession) return;
+
+    const resolveRoute = () => {
+      const hash = window.location.hash.replace('#', '');
+      // If no hash, default to landing, unless they are logged in, then default to dashboard
+      let nextRoute = hash;
+      
+      const landingSections = ['landing', 'home', 'about', 'contact', 'features', 'portals', ''];
+      const publicRoutes = [...landingSections, 'login', 'signup'];
+
+      if (userProfile) {
+        // Logged in
+        if (!nextRoute || nextRoute === 'login' || nextRoute === 'signup' || nextRoute === 'landing') {
+          // If on a public/login route or empty route while logged in, go to dashboard
+          const defaultDash = userProfile.role === 'Admin' ? 'admin_dashboard' : userProfile.role === 'Lecturer' ? 'lecturer_dashboard' : 'dashboard';
+          window.history.replaceState({ view: defaultDash }, '', `/#${defaultDash}`);
+          setCurrentView(defaultDash as any);
+          return;
+        } else if (!publicRoutes.includes(nextRoute) && !isAllowed(userProfile.role, nextRoute)) {
+          // If trying to access an unauthorized private route
+          const defaultDash = userProfile.role === 'Admin' ? 'admin_dashboard' : userProfile.role === 'Lecturer' ? 'lecturer_dashboard' : 'dashboard';
+          window.history.replaceState({ view: defaultDash }, '', `/#${defaultDash}`);
+          setCurrentView(defaultDash as any);
+          return;
+        }
+      } else {
+        // Not logged in
+        if (!nextRoute) {
+          nextRoute = 'landing';
+        } else if (!publicRoutes.includes(nextRoute)) {
+          // If trying to access a private route while not logged in
+          nextRoute = 'login';
+          window.history.replaceState({ view: 'login' }, '', `/#login`);
+        }
+      }
+
+      if (landingSections.includes(nextRoute)) {
+        setCurrentView('landing');
+      } else {
+        setCurrentView(nextRoute as any);
+      }
+    };
+    resolveRoute();
+
+    const handlePopState = () => {
+      resolveRoute();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, [isLoadingSession, userProfile]);
+
+  useEffect(() => {
+    const handleScrollToHash = () => {
+      if (currentView === 'landing') {
+        const hash = window.location.hash.replace('#', '');
+        if (hash && hash !== 'landing') {
+          // Add a tiny delay to ensure rendering is complete
+          setTimeout(() => {
+            const targetElement = document.getElementById(hash);
+            if (targetElement) {
+              targetElement.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 50);
+        }
+      }
+    };
+
+    handleScrollToHash();
+    window.addEventListener('hashchange', handleScrollToHash);
+    return () => window.removeEventListener('hashchange', handleScrollToHash);
+  }, [currentView]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey && e.key === 'k') || e.key === '/') {
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+          return;
+        }
+        e.preventDefault();
+        setIsSearchOpen(true);
+      }
+      if (e.key === 'Escape') {
+        setIsSearchOpen(false);
+      }
+    };
+
+    const handleOpenSearch = () => setIsSearchOpen(true);
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('open-global-search', handleOpenSearch);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('open-global-search', handleOpenSearch);
+    };
+  }, []);
+
+  const handleNavigate = (view: string) => {
+    
+    const landingSections = ['landing', 'home', 'about', 'contact', 'features', 'portals', ''];
+    const publicRoutes = [...landingSections, 'login', 'signup'];
+    const isPublicRoute = publicRoutes.includes(view);
+
+    const currentProfile = getProfileCache() || userProfile;
+    // During login transition, currentProfile might be null temporarily while fetchProfileForUser runs.
+    // If we're trying to navigate to a dashboard from login, allow it temporarily; useEffect will correct it if needed.
+    if (!currentProfile && !isPublicRoute) {
+      if (['dashboard', 'admin_dashboard', 'lecturer_dashboard'].includes(view)) {
+         // Allow optimistic navigation
+      } else {
+         view = 'login';
+      }
+    } else if (currentProfile && !isAllowed(currentProfile.role, view)) {
+      return; // Deny
+    }
+    
+    window.history.pushState({ view }, '', `/#${view}`);
+    const nextCurrentView = landingSections.includes(view) ? 'landing' : view;
+    setCurrentView(nextCurrentView as any);
+  };
+
+  const handleLogout = async () => {  
+    try {
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch (e) {
+      console.warn("Logout error:", e);
+    }
+    window.history.pushState({ view: 'landing' }, '', '/');
+    setCurrentView('landing');
+  };
+
+  if (isLoadingSession) {
+    return (
+      <div className="min-h-[100dvh] bg-[#020617] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin h-8 w-8 text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p className="text-slate-400 font-body text-sm">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] bg-[#020617] font-sans selection:bg-blue-500/30">
+      {currentView === 'landing' && (
+        <>
+          <Navbar onSignUp={() => handleNavigate('signup')} onLogin={() => handleNavigate('login')} />
+          <main>
+            <Hero onSignUp={() => handleNavigate('signup')} onLogin={() => handleNavigate('login')} />
+            <Portals />
+            <Features />
+            <Testimonials />
+          </main>
+          <Footer />
+        </>
+      )}
+      {currentView === 'signup' && (
+        <SignUp onCancel={() => handleNavigate('landing')} onSuccess={(role) => {
+          if (role === 'Admin') handleNavigate('admin_dashboard');
+          else if (role === 'Lecturer') handleNavigate('lecturer_dashboard');
+          else handleNavigate('dashboard');
+        }} />
+      )}
+      {currentView === 'login' && (
+        <Login onCancel={() => handleNavigate('landing')} onSuccess={handleNavigate} />
+      )}
+      {currentView === 'dashboard' && (
+        <StudentDashboard onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'courses' && (
+        <MyCoursesPage onLogout={handleLogout} onOpenChat={() => handleNavigate('chats')} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'chats' && (
+        <ErrorBoundary><CourseChatSystem onLogout={handleLogout} onNavigate={handleNavigate} /></ErrorBoundary>
+      )}
+      {currentView === 'cbt' && (
+        <CBTPracticePage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'past-questions' && (
+        <PastQuestionsPage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'resources' && (
+        <ResourceLibraryPage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'revision' && (
+        <RevisionModePage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'analytics' && (
+        <PerformanceAnalyticsPage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'profile' && (
+        <StudentProfilePage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'settings' && (
+        <SettingsPage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      
+      {currentView === 'lecturer_dashboard' && (
+        <LecturerDashboard onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'admin_dashboard' && (
+        <AdminDashboard onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      {currentView === 'announcements' && (
+        <AnnouncementCenter onBack={() => handleNavigate(userProfile?.role === 'Admin' ? 'admin_dashboard' : userProfile?.role === 'Lecturer' ? 'lecturer_dashboard' : 'dashboard')} />
+      )}
+      {currentView === 'ai' && (
+        <DashboardLayout onLogout={handleLogout} currentView="ai" onNavigate={handleNavigate}>
+          <TunborzyAI
+            onBack={() => handleNavigate(userProfile?.role === 'Admin' ? 'admin_dashboard' : userProfile?.role === 'Lecturer' ? 'lecturer_dashboard' : 'dashboard')}
+            role={userProfile?.role === 'Lecturer' ? 'lecturer' : userProfile?.role === 'Admin' ? 'admin' : 'student'}
+          />
+        </DashboardLayout>
+      )}
+      {currentView === 'help_support' && (
+        <HelpSupportPage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}
+      <GlobalSearch 
+        isOpen={isSearchOpen} 
+        onClose={() => setIsSearchOpen(false)} 
+        onNavigate={handleNavigate}
+        userRole={userProfile?.role?.toLowerCase() || 'student'}
+      />
+      {/* Floating Notification Button */}
+      {currentView !== 'announcements' && currentView !== 'landing' && currentView !== 'login' && currentView !== 'signup' && (
+        <FloatingNotificationButton onClick={() => handleNavigate('announcements')} />
+      )}
+    </div>
+  );
+}

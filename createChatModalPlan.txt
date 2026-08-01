@@ -1,0 +1,6 @@
+- Add `Plus` to lucide-react imports.
+- Add states: `showCreateChatModal`, `chatForm` (name, course_id, description, lecturer_id, student_ids).
+- On mount, fetch `courses`, `lecturers`, `students` for the modal if Admin.
+- The modal UI inside `CourseChatSystem`.
+- `handleCreateChat`: Insert into `chats` table.
+- Then instantly push to `dynamicChats` so it appears immediately!
