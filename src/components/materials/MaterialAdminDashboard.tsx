@@ -371,7 +371,7 @@ export default function MaterialAdminDashboard() {
                       {/* Thumbnail or Icon */}
                       <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-slate-900 border border-slate-800 flex items-center justify-center relative">
                         {m.thumbnail_url ? (
-                          <img src={m.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                          <img loading="lazy" src={m.thumbnail_url} alt="" className="w-full h-full object-cover" />
                         ) : (
                           getIcon(m.file_type)
                         )}

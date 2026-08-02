@@ -74,7 +74,7 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
       setLevelInput(profile.level || '');
       setAvatarUrl(profile.avatar_url || '');
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   
   const [isSaving, setIsSaving] = useState(false);
@@ -331,7 +331,7 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
               <div className="flex flex-col sm:flex-row gap-6 mb-6">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center border-4 border-[#020617] overflow-hidden relative group cursor-pointer" onClick={() => document.getElementById('avatarUpload')?.click()}>
-                    {avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" /> : <User size={40} className="text-slate-400 group-hover:opacity-50 transition-opacity" />}
+                    {avatarUrl ? <img loading="lazy" src={avatarUrl} alt="Avatar" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" /> : <User size={40} className="text-slate-400 group-hover:opacity-50 transition-opacity" />}
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <ImageIcon size={20} className="text-white" />
                     </div>

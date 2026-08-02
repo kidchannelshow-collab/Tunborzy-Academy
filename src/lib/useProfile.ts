@@ -189,3 +189,9 @@ export async function refreshProfile() {
 }
 
 export function getProfileCache() { return globalProfileCache; }
+
+
+// Initialize auth state immediately on load
+if (supabase && typeof window !== 'undefined') {
+  fetchProfileForUser(null);
+}

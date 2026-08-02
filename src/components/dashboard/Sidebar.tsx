@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen, setIsOpen, onLogout, currentView = 'da
                   }`}
                 >
                   {item.id === 'profile' && profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="Avatar" className="w-5 h-5 rounded-full object-cover" />
+                    <img loading="lazy" src={profile.avatar_url} alt="Avatar" className="w-5 h-5 rounded-full object-cover" />
                   ) : (
                     <item.icon size={20} className={isActive ? 'text-amber-500' : 'text-slate-400'} />
                   )}

@@ -45,7 +45,7 @@ export default function RevisionModePage({ onLogout, onNavigate }: RevisionModeP
     if (profile?.portal) {
       setAcademicPortal(profile.portal);
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const getSubjects = () => {
     if (academicPortal === 'UTME') return UTME_SUBJECTS;

@@ -107,7 +107,7 @@ export default function CBTReviewView({ attemptId, onBack }: any) {
           {q.question_text}
         </h2>
         {q.image_url && (
-          <img src={q.image_url} alt="Question Context" className="max-w-full h-auto rounded-xl border border-slate-800 mb-8" />
+          <img loading="lazy" src={q.image_url} alt="Question Context" className="max-w-full h-auto rounded-xl border border-slate-800 mb-8" />
         )}
         
         <div className="space-y-3">

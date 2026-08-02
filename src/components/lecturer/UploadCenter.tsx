@@ -32,7 +32,7 @@ export default function UploadCenter() {
 
   useEffect(() => {
     if (profile) fetchData();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchData = async () => {
     if (!supabase) return;

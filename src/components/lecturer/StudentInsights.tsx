@@ -35,7 +35,7 @@ export default function StudentInsights() {
 
   useEffect(() => {
     if (profile) fetchCourses();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchCourses = async () => {
     if (!supabase) return;

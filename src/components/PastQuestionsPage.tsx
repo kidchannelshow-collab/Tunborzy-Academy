@@ -47,7 +47,7 @@ export default function PastQuestionsPage({ onLogout, onNavigate }: PastQuestion
     if (profile?.portal) {
       setAcademicPortal(profile.portal);
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   useEffect(() => {
     async function loadPastQuestions() {

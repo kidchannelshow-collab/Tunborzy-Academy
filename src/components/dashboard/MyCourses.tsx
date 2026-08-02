@@ -45,7 +45,7 @@ export default function MyCourses({ onNavigate }: MyCoursesProps) {
     };
 
     fetchCourses();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   if (loading) {
      return <div className="animate-pulse h-48 bg-slate-800/50 rounded-2xl mb-10"></div>;

@@ -481,7 +481,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
                   
                   {msg.role === 'user' && (
                     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-slate-800 flex-shrink-0 flex items-center justify-center mt-1 font-bold text-white uppercase overflow-hidden">
-                      {avatarUrl ? <img src={avatarUrl} alt="User" className="w-full h-full object-cover" /> : initials}
+                      {avatarUrl ? <img loading="lazy" src={avatarUrl} alt="User" className="w-full h-full object-cover" /> : initials}
                     </div>
                   )}
                 </motion.div>

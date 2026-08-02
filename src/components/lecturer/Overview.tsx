@@ -27,7 +27,7 @@ export default function Overview() {
       fetchStats();
       fetchRecentActivity();
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchStats = async () => {
     if (!supabase || !profile) return;

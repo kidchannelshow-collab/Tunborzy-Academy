@@ -149,7 +149,7 @@ export default function ChatComposer({
           {selectedFiles.map((file, idx) => (
             <div key={idx} className="relative w-24 h-24 rounded-lg bg-slate-800 border border-slate-700 flex-shrink-0 flex flex-col items-center justify-center overflow-hidden group">
               {file.type.startsWith('image/') ? (
-                <img src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="Preview" />
+                <img loading="lazy" src={URL.createObjectURL(file)} className="w-full h-full object-cover" alt="Preview" />
               ) : (
                 <>
                   <FileIcon size={32} className="text-slate-400 mb-1" />

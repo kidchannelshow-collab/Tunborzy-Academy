@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { notificationService } from '../lib/notificationService';
 import { useProfile } from '../lib/useProfile';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -45,7 +46,7 @@ const TARGETS = [
   'Specific Course', 'Selected Users'
 ];
 
-export default function AnnouncementCenter({ onBack }: { onBack?: () => void }) {
+export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: () => void, onNavigate?: (view: string) => void }) {
   const { profile } = useProfile();
   const role = profile?.role?.toLowerCase() || 'student';
   const [announcements, setAnnouncements] = useState<any[]>([]);
@@ -63,7 +64,7 @@ export default function AnnouncementCenter({ onBack }: { onBack?: () => void }) 
         
         const { data: notifData } = await supabase.from('notifications')
           .select('*')
-          .eq('target_role', profile.role)
+          .eq('user_id', profile.id)
           .order('created_at', { ascending: false });
         if (notifData) setNotifications(notifData);
       } catch (err) {
@@ -71,7 +72,22 @@ export default function AnnouncementCenter({ onBack }: { onBack?: () => void }) 
       }
     };
     fetchAll();
-  }, [profile]);
+    
+    const channel = supabase.channel('announcement_notifications')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`
+      }, (payload) => {
+        fetchAll();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, profile?.role]);
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'bookmarked' | 'pinned'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -224,15 +240,19 @@ export default function AnnouncementCenter({ onBack }: { onBack?: () => void }) 
             <div className="flex items-center gap-3">
               <tab.icon size={18} /> {tab.label}
             </div>
-            {tab.id === 'unread' && <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">3</span>}
+            {tab.id === 'unread' && notifications.filter(n => !n.is_read).length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{notifications.filter(n => !n.is_read).length}</span>}
           </button>
         ))}
         
         <div className="mt-8 pt-6 border-t border-slate-800/50">
-          <button className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+          <button onClick={async () => {
+             await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile.id).eq('is_read', false);
+          }} className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
             <Check size={16} /> Mark all as read
           </button>
-          <button className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:text-rose-400 flex items-center gap-2 transition-colors">
+          <button onClick={async () => {
+             await supabase.from('notifications').delete().eq('user_id', profile.id).eq('is_read', true);
+          }} className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:text-rose-400 flex items-center gap-2 transition-colors">
             <Trash2 size={16} /> Clear all read
           </button>
         </div>
@@ -471,6 +491,14 @@ export default function AnnouncementCenter({ onBack }: { onBack?: () => void }) 
       target_role: targetRole,
       created_by: profile.id
     });
+    
+    // Also broadcast a notification
+    if (targetRole === 'Everyone') {
+      await notificationService.notifyRole('Student', formTitle, formDesc, 'announcement', '/announcements');
+      await notificationService.notifyRole('Lecturer', formTitle, formDesc, 'announcement', '/announcements');
+    } else {
+      await notificationService.notifyRole(targetRole, formTitle, formDesc, 'announcement', '/announcements');
+    }
     
     const { data } = await supabase.from('announcements').select('*').eq('target_role', profile.role).order('created_at', { ascending: false });
     if (data) setAnnouncements(data);

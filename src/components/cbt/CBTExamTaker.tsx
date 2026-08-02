@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Clock, Flag, Send, AlertTriangle, Maximize, Minimize, Calculator as CalcIcon } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { notificationService } from '../../lib/notificationService';
+
+import { useProfile } from '../../lib/useProfile';
 
 export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, customConfig }: any) {
+  const { profile } = useProfile();
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
@@ -154,6 +158,13 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
 
     try {
       if (attemptId !== 'custom-attempt-id') {
+        if (profile) await notificationService.notifyUser({
+          userId: profile?.id,
+          title: `CBT Completed`,
+          message: `You have completed the assessment. Score: ${score}%`,
+          type: 'result',
+          link: '/cbt'
+        });
         await supabase.from('cbt_attempts').update({
           end_time: new Date().toISOString(),
           status: 'completed',
@@ -280,7 +291,7 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
                   {q.question_text}
                 </h2>
                 {q.image_url && (
-                  <img src={q.image_url} alt="Question Context" className="max-w-full h-auto rounded-xl border border-slate-800 mb-8" />
+                  <img loading="lazy" src={q.image_url} alt="Question Context" className="max-w-full h-auto rounded-xl border border-slate-800 mb-8" />
                 )}
                 
                 <div className="space-y-3">

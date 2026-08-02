@@ -56,7 +56,7 @@ export default function ActivityAndAnnouncements({ onNavigate }: ActivityAndAnno
 
     fetchAnnouncements();
     fetchActivities();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-10">

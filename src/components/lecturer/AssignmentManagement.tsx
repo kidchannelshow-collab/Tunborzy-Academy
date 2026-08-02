@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Book, Plus, CheckCircle2, Trash2, Edit2, Users, FileText, Calendar, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { notificationService } from '../../lib/notificationService';
 import { useProfile } from '../../lib/useProfile';
 
 export default function AssignmentManagement() {
@@ -28,7 +29,7 @@ export default function AssignmentManagement() {
 
   useEffect(() => {
     if (profile) fetchData();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchData = async () => {
     if (!supabase || !profile) return;
@@ -74,6 +75,9 @@ export default function AssignmentManagement() {
         await supabase.from('assignments').update(payload).eq('id', editingId);
       } else {
         await supabase.from('assignments').insert(payload);
+        if (payload.course_id) {
+           await notificationService.notifyCourseStudents(payload.course_id, `New Assignment: ${payload.title}`, `A new assignment has been posted.`, 'assignment', '/courses');
+        }
       }
       setShowModal(false);
       resetForm();

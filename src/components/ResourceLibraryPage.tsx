@@ -68,7 +68,7 @@ export default function ResourceLibraryPage({ onLogout, onNavigate }: ResourceLi
     }
     
     loadData();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const getIconForType = (type: string) => {
     switch (type.toLowerCase()) {
@@ -193,7 +193,7 @@ export default function ResourceLibraryPage({ onLogout, onNavigate }: ResourceLi
                     {/* Thumbnail area for PDF/Image */}
                     {m.file_type === 'pdf' && m.thumbnail_url ? (
                       <div className="h-40 w-full bg-slate-900 relative overflow-hidden">
-                        <img src={m.thumbnail_url} alt={m.title} className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-500" />
+                        <img loading="lazy" src={m.thumbnail_url} alt={m.title} className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-500" />
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="w-12 h-12 bg-amber-500/90 text-slate-950 rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
                             <PlayCircle size={24} className="ml-1" />

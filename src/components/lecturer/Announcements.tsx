@@ -19,7 +19,7 @@ export default function Announcements() {
 
   useEffect(() => {
     if (profile) fetchData();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchData = async () => {
     if (!supabase || !profile) return;

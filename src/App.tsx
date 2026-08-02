@@ -5,37 +5,37 @@ import FloatingNotificationButton from "./components/FloatingNotificationButton"
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Portals from './components/Portals';
 import Features from './components/Features';
 import Testimonials from './components/Testimonials';
 import Footer from './components/Footer';
-import SignUp from './components/SignUp';
-import StudentDashboard from './components/StudentDashboard';
+const SignUp = lazy(() => import('./components/SignUp'));
+const StudentDashboard = lazy(() => import('./components/StudentDashboard'));
 
-import Login from './components/Login';
+const Login = lazy(() => import('./components/Login'));
 
-import MyCoursesPage from './components/MyCoursesPage';
-import CourseChatSystem from './components/CourseChatSystem';
-import ResourceLibraryPage from './components/ResourceLibraryPage';
-import CBTPracticePage from './components/CBTPracticePage';
-import PastQuestionsPage from './components/PastQuestionsPage';
+const MyCoursesPage = lazy(() => import('./components/MyCoursesPage'));
+const CourseChatSystem = lazy(() => import('./components/CourseChatSystem'));
+const ResourceLibraryPage = lazy(() => import('./components/ResourceLibraryPage'));
+const CBTPracticePage = lazy(() => import('./components/CBTPracticePage'));
+const PastQuestionsPage = lazy(() => import('./components/PastQuestionsPage'));
 
-import RevisionModePage from './components/RevisionModePage';
-import PerformanceAnalyticsPage from './components/PerformanceAnalyticsPage';
+const RevisionModePage = lazy(() => import('./components/RevisionModePage'));
+const PerformanceAnalyticsPage = lazy(() => import('./components/PerformanceAnalyticsPage'));
 
-import StudentProfilePage from './components/StudentProfilePage';
-import SettingsPage from './components/SettingsPage';
+const StudentProfilePage = lazy(() => import('./components/StudentProfilePage'));
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
 
-import LecturerDashboard from './components/LecturerDashboard';
-import DashboardLayout from "./components/dashboard/DashboardLayout";
-import AdminDashboard from './components/AdminDashboard';
-import AnnouncementCenter from './components/AnnouncementCenter';
-import TunborzyAI from './components/TunborzyAI';
+const LecturerDashboard = lazy(() => import('./components/LecturerDashboard'));
+const DashboardLayout = lazy(() => import('./components/dashboard/DashboardLayout'));
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const AnnouncementCenter = lazy(() => import('./components/AnnouncementCenter'));
+const TunborzyAI = lazy(() => import('./components/TunborzyAI'));
 import GlobalSearch from './components/GlobalSearch';
-import HelpSupportPage from './components/HelpSupportPage';
+const HelpSupportPage = lazy(() => import('./components/HelpSupportPage'));
 import { useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { useProfile, getProfileCache } from './lib/useProfile';
@@ -223,15 +223,18 @@ export default function App() {
         </>
       )}
       {currentView === 'signup' && (
-        <SignUp onCancel={() => handleNavigate('landing')} onSuccess={(role) => {
-          if (role === 'Admin') handleNavigate('admin_dashboard');
-          else if (role === 'Lecturer') handleNavigate('lecturer_dashboard');
-          else handleNavigate('dashboard');
-        }} />
+        <Suspense fallback={<div className="min-h-[100dvh] bg-[#020617] flex items-center justify-center"><div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+          <SignUp onCancel={() => handleNavigate('landing')} onSuccess={(role) => {
+            if (role === 'Admin') handleNavigate('admin_dashboard');
+            else if (role === 'Lecturer') handleNavigate('lecturer_dashboard');
+            else handleNavigate('dashboard');
+          }} />
+        </Suspense>
       )}
       {currentView === 'login' && (
         <Login onCancel={() => handleNavigate('landing')} onSuccess={handleNavigate} />
       )}
+      <Suspense fallback={<div className="min-h-[100dvh] bg-[#020617] flex items-center justify-center"><div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div></div>}>
       {currentView === 'dashboard' && (
         <StudentDashboard onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
@@ -270,7 +273,7 @@ export default function App() {
         <AdminDashboard onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
       {currentView === 'announcements' && (
-        <AnnouncementCenter onBack={() => handleNavigate(userProfile?.role === 'Admin' ? 'admin_dashboard' : userProfile?.role === 'Lecturer' ? 'lecturer_dashboard' : 'dashboard')} />
+        <AnnouncementCenter onBack={() => handleNavigate(userProfile?.role === 'Admin' ? 'admin_dashboard' : userProfile?.role === 'Lecturer' ? 'lecturer_dashboard' : 'dashboard')} onNavigate={handleNavigate} />
       )}
       {currentView === 'ai' && (
         <DashboardLayout onLogout={handleLogout} currentView="ai" onNavigate={handleNavigate}>
@@ -293,6 +296,7 @@ export default function App() {
       {currentView !== 'announcements' && currentView !== 'landing' && currentView !== 'login' && currentView !== 'signup' && (
         <FloatingNotificationButton onClick={() => handleNavigate('announcements')} />
       )}
+      </Suspense>
     </div>
   );
 }

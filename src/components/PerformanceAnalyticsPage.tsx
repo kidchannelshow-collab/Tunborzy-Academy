@@ -129,7 +129,7 @@ export default function PerformanceAnalyticsPage({ onLogout, onNavigate }: Perfo
     if (profile?.portal) {
       setAcademicPortal(profile.portal);
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   useEffect(() => {
     async function loadCbtStats() {
@@ -149,7 +149,7 @@ export default function PerformanceAnalyticsPage({ onLogout, onNavigate }: Perfo
       }
     }
     loadCbtStats();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   return (
     <DashboardLayout onLogout={onLogout} currentView="analytics" onNavigate={onNavigate}>

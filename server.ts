@@ -51,7 +51,7 @@ ${files.map((f: any) => `- ${f.name}`).join('\n')}
       };
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -87,7 +87,7 @@ ${files.map((f: any) => `- ${f.name}`).join('\n')}
       }));
 
       const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         contents,
         config: {
           systemInstruction,

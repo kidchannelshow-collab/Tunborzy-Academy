@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileText, Plus, Edit2, Trash2, Eye, EyeOff, FileSpreadsheet, Search } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
+import { notificationService } from '../../lib/notificationService';
 import { useProfile } from '../../lib/useProfile';
 import CBTQuestionManager from './CBTQuestionManager';
 
@@ -24,7 +25,7 @@ export default function CBTManagement() {
 
   useEffect(() => {
     if (profile) fetchData();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchData = async () => {
     if (!supabase || !profile) return;
@@ -67,6 +68,9 @@ export default function CBTManagement() {
         await supabase.from('cbt_exams').update(payload).eq('id', editingId);
       } else {
         await supabase.from('cbt_exams').insert(payload);
+        if (payload.course_id) {
+           await notificationService.notifyCourseStudents(payload.course_id, `New CBT Available: ${payload.title}`, `A new CBT exam has been scheduled.`, 'cbt', '/cbt');
+        }
       }
       setShowModal(false);
       resetForm();

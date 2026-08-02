@@ -32,7 +32,7 @@ export default function CourseManagement() {
 
   useEffect(() => {
     if (profile) fetchCourses();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const fetchCourses = async () => {
     if (!supabase || !profile) return;
@@ -230,7 +230,7 @@ export default function CourseManagement() {
 
               <div className="h-40 bg-slate-900 relative">
                 {course.thumbnail_url ? (
-                  <img src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" />
+                  <img loading="lazy" src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-600">
                     <ImageIcon size={40} />
@@ -360,7 +360,7 @@ export default function CourseManagement() {
                       >
                         <input type="file" ref={thumbnailInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], 'thumbnail')} />
                         {thumbnailUrl ? (
-                          <img src={thumbnailUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="Thumbnail" />
+                          <img loading="lazy" src={thumbnailUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="Thumbnail" />
                         ) : (
                           <>
                             <UploadCloud size={24} className="text-slate-500 mb-2" />
@@ -382,7 +382,7 @@ export default function CourseManagement() {
                       >
                         <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], 'cover')} />
                         {coverImageUrl ? (
-                          <img src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="Cover" />
+                          <img loading="lazy" src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="Cover" />
                         ) : (
                           <>
                             <ImageIcon size={24} className="text-slate-500 mb-2" />

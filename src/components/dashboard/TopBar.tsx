@@ -21,7 +21,7 @@ export default function TopBar({ onOpenSidebar, studentName, onNavigate }: TopBa
         const { count } = await supabase
           .from('notifications')
           .select('*', { count: 'exact', head: true })
-          .eq('target_role', profile.role)
+          .eq('user_id', profile.id)
           .eq('is_read', false);
         setUnreadCount(count || 0);
       } catch (err) {
@@ -29,7 +29,24 @@ export default function TopBar({ onOpenSidebar, studentName, onNavigate }: TopBa
       }
     };
     fetchUnread();
-  }, [profile]);
+    
+    // Subscribe to realtime updates for notifications
+    const channel = supabase.channel('topbar_notifications')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${profile.id}`
+      }, (payload) => {
+        // Re-fetch unread count on any change
+        fetchUnread();
+      })
+      .subscribe();
+      
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile?.id, profile?.role]);
   
   const displayName = profile?.full_name || "";
 
@@ -105,7 +122,7 @@ export default function TopBar({ onOpenSidebar, studentName, onNavigate }: TopBa
           className="w-10 h-10 rounded-xl overflow-hidden border-2 border-amber-500/50 relative bg-slate-800 flex items-center justify-center"
         >
           {profile?.avatar_url ? (
-            <img 
+            <img loading="lazy" 
               src={profile.avatar_url} 
               alt="Profile" 
               className="w-full h-full object-cover"

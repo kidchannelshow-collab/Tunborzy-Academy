@@ -21,7 +21,7 @@ export default function LecturerProfile() {
         email: profile.email || '',
       });
     }
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

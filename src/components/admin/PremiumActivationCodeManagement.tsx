@@ -214,7 +214,7 @@ export default function PremiumActivationCodeManagement() {
                 <div className="absolute z-10 w-full mt-2 bg-[#020617] border border-slate-700 rounded-xl shadow-2xl max-h-64 overflow-y-auto">
                    {searchResults.map(s => (
                       <div key={s.id} onClick={() => selectStudent(s)} className="p-3 hover:bg-slate-800 cursor-pointer border-b border-slate-800 flex items-center gap-3">
-                         <img src={s.photo} className="w-8 h-8 rounded-full bg-slate-800" />
+                         <img loading="lazy" src={s.photo} className="w-8 h-8 rounded-full bg-slate-800" />
                          <div><p className="text-white text-sm font-bold">{s.name}</p><p className="text-slate-400 text-xs">{s.email}</p></div>
                       </div>
                    ))}
@@ -233,7 +233,7 @@ export default function PremiumActivationCodeManagement() {
                 >
                   <div className="flex items-start gap-4">
                     <div className="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold uppercase text-2xl flex-shrink-0 overflow-hidden">
-                      <img src={selectedStudent.photo} alt={selectedStudent.name} className="w-full h-full object-cover" />
+                      <img loading="lazy" src={selectedStudent.photo} alt={selectedStudent.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-bold text-white truncate">{selectedStudent.name}</h3>

@@ -66,7 +66,7 @@ export default function StudentProfilePage({ onLogout, onNavigate }: StudentProf
       }
     }
     loadData();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
   
   const STATS = [
     { label: 'Messages Sent', value: stats.messages.toString(), icon: MessageCircle, color: 'text-blue-500', bg: 'bg-blue-500/10' },
@@ -161,7 +161,7 @@ export default function StudentProfilePage({ onLogout, onNavigate }: StudentProf
                   {/* Avatar */}
                   <div className="w-24 h-24 rounded-full border-4 border-[#020617] bg-slate-800 flex items-center justify-center shadow-xl mb-4 overflow-hidden">
                     {avatarUrl ? (
-                      <img 
+                      <img loading="lazy" 
                         src={avatarUrl}
                         alt={fullName}
                         className="w-full h-full object-cover"

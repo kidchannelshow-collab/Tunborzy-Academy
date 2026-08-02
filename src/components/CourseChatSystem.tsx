@@ -904,7 +904,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
       }
     };
     loadChats();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   useEffect(() => {
     if (activeChat && dynamicChats.length > 0) {
@@ -1304,7 +1304,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
                             <div className="flex flex-col gap-2">
                               {msg.text && <p className={`text-[15px] leading-relaxed break-words ${msg.isDeleted ? 'italic text-slate-400/80' : ''}`}>{renderMessageTextWithHighlight(msg.text)}</p>}
                               <div className="relative rounded-xl overflow-hidden mt-1 border border-slate-700 max-h-64 cursor-pointer">
-                                 <img src={msg.imageUrl} alt="Shared image" className="w-full h-full object-cover" />
+                                 <img loading="lazy" src={msg.imageUrl} alt="Shared image" className="w-full h-full object-cover" />
                               </div>
                             </div>
                           )}

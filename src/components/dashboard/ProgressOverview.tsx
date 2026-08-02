@@ -18,11 +18,20 @@ export default function ProgressOverview() {
     if (!profile) return;
     const fetchStats = async () => {
       try {
-        const { data: cbtAttempts } = await supabase
-          .from('cbt_attempts')
-          .select('score, total_questions')
-          .eq('student_id', profile.id)
-          .not('score', 'is', null);
+        const [cbtRes, enrRes] = await Promise.all([
+          supabase
+            .from('cbt_attempts')
+            .select('score, total_questions')
+            .eq('student_id', profile.id)
+            .not('score', 'is', null),
+          supabase
+            .from('course_enrollments')
+            .select('*', { count: 'exact', head: true })
+            .eq('student_id', profile.id)
+        ]);
+
+        const cbtAttempts = cbtRes.data;
+        const enrolledCount = enrRes.count;
 
         let cbtCount = 0;
         let cbtAvg = 0;
@@ -38,11 +47,6 @@ export default function ProgressOverview() {
           cbtAvg = Math.round(sum / cbtCount);
         }
 
-        const { count: enrolledCount } = await supabase
-          .from('course_enrollments')
-          .select('*', { count: 'exact', head: true })
-          .eq('student_id', profile.id);
-
         setStatsData({
           topicsCount: enrolledCount || 0,
           cbtCount,
@@ -56,7 +60,7 @@ export default function ProgressOverview() {
       }
     };
     fetchStats();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const stats = [
     { label: 'Courses Enrolled', value: `${statsData.topicsCount}`, icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/10' },

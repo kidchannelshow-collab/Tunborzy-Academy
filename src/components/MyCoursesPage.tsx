@@ -45,7 +45,7 @@ export default function MyCoursesPage({ onLogout, onOpenChat, onNavigate }: MyCo
       }
     };
     fetchCourses();
-  }, [profile]);
+  }, [profile?.id, profile?.role]);
 
   const filteredCourses = courses.filter(course =>
     course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
