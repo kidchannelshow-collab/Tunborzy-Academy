@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { refreshProfile } from '../lib/useProfile';
 
 interface LoginProps {
   onCancel: () => void;
@@ -75,6 +76,7 @@ export default function Login({ onCancel, onSuccess }: LoginProps) {
            throw new Error('Database Error: Profile does not exist.');
         }
 
+        await refreshProfile();
         if (onSuccess && isMounted.current) {
           const role = profile.role || 'student';
           if (role.toLowerCase() === 'lecturer') {

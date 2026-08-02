@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, Circle, ChevronDown, Search, Building, BookOpen, Shield, Key } from 'lucide-react';
 import { supabase } from '../supabaseClient';
+import { refreshProfile } from '../lib/useProfile';
 
 interface SignUpProps {
   onCancel: () => void;
@@ -110,6 +111,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         });
         if (loginError) throw loginError;
 
+        await refreshProfile();
         setSuccessMsg('Registration successful. Redirecting...');
         setTimeout(() => {
           if (onSuccess && isMounted.current) onSuccess('Admin');
@@ -141,6 +143,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
           throw loginError;
         }
 
+        await refreshProfile();
         setSuccessMsg('Registration successful. Redirecting...');
         setTimeout(() => {
           if (onSuccess && isMounted.current) onSuccess('Lecturer');
@@ -167,6 +170,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
            throw new Error('Database Error: Profile missing for existing user.');
         }
         
+        await refreshProfile();
         setSuccessMsg('Logged in successfully. Redirecting...');
         setTimeout(() => {
           const finalRole = profile?.role || role;
@@ -205,6 +209,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
             if (!profile) {
               throw new Error('Database Error: Profile missing for existing user.');
             }
+            await refreshProfile();
             setSuccessMsg('Logged in successfully. Redirecting...');
             setTimeout(() => {
               const finalRole = profile?.role || role;
@@ -271,6 +276,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
       
       console.log('Student profile inserted successfully!');
       
+      await refreshProfile();
       setSuccessMsg('Registration successful. Redirecting...');
       setTimeout(() => {
         if (onSuccess && isMounted.current) onSuccess(role);

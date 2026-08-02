@@ -3,11 +3,12 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 let globalProfileCache: any = null;
-let globalProfileListeners: any[] = [];
+let globalProfileListeners: ((profile: any, loading: boolean) => void)[] = [];
+let globalIsLoading = true;
 let isListeningToAuth = false;
 
 function notifyListeners() {
-  globalProfileListeners.forEach(listener => listener(globalProfileCache));
+  globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
 }
 
 let fetchProfilePromise: Promise<void> | null = null;
@@ -20,7 +21,7 @@ function isFetchFailure(err: any) {
   return !!(err && (err.message?.includes('fetch') || err.message?.includes('Fetch')));
 }
 
-async function fetchProfileForUser(user: any) {
+async function fetchProfileForUser(user: any, force = false) {
   if (!user || !supabase) {
     if (supabase) {
       try {
@@ -32,26 +33,32 @@ async function fetchProfileForUser(user: any) {
           console.log("Setting globalProfileCache to null. user:", user);
           globalProfileCache = null;
           console.log("notifyListeners called with", globalProfileCache);
-          globalProfileListeners.forEach(listener => listener(globalProfileCache));
+          globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
           return;
         }
       } catch (err) {
         console.warn("Error getting session in fetchProfileForUser:", err);
         globalProfileCache = null;
-        globalProfileListeners.forEach(listener => listener(globalProfileCache));
+        globalIsLoading = false;
+        globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
         return;
       }
     } else {
       console.log("Setting globalProfileCache to null. user:", user);
       globalProfileCache = null;
+      globalIsLoading = false;
       console.log("notifyListeners called with", globalProfileCache);
-      globalProfileListeners.forEach(listener => listener(globalProfileCache));
+      globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
       return;
     }
   }
   
   if (fetchProfilePromise) {
-    return fetchProfilePromise;
+    if (!force) {
+      return fetchProfilePromise;
+    } else {
+      await fetchProfilePromise; // wait for it to finish
+    }
   }
   
   fetchProfilePromise = (async () => {
@@ -112,13 +119,15 @@ async function fetchProfileForUser(user: any) {
       } else {
          globalProfileCache = null;
       }
-      globalProfileListeners.forEach(listener => listener(globalProfileCache));
+      globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
     } catch(err) {
       console.warn("Failed to fetch profile", err);
       console.log("notifyListeners called with", globalProfileCache);
-  globalProfileListeners.forEach(listener => listener(globalProfileCache));
+  globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
     } finally {
       fetchProfilePromise = null;
+      globalIsLoading = false;
+      globalProfileListeners.forEach(listener => listener(globalProfileCache, globalIsLoading));
     }
   })();
   return fetchProfilePromise;
@@ -154,8 +163,8 @@ export function useProfile() {
         console.log("onAuthStateChange fired. event:", _event, "session:", session);
         fetchProfileForUser(session?.user || null);
       });
-    } else if (globalProfileCache) {
-       // Already cached and initialized
+    } else if (globalProfileCache && !globalIsLoading) {
+       // Already cached and initialized and not loading
        if (isMounted) setLoading(false);
     }
     
@@ -173,7 +182,7 @@ export async function refreshProfile() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     await console.log("getUser resolved. user:", user);
-        fetchProfileForUser(user);
+        await fetchProfileForUser(user);
   } catch (err) {
     console.warn("refreshProfile error:", err);
   }
