@@ -5,7 +5,6 @@ import UserManagement from './admin/UserManagement';
 import LecturerManagement from './admin/LecturerManagement';
 import AcademicManagement from './admin/AcademicManagement';
 import ContentManagement from './admin/ContentManagement';
-import PremiumManagement from './admin/PremiumManagement';
 import PremiumActivationCodeManagement from './admin/PremiumActivationCodeManagement';
 import StudentActivation from './admin/StudentActivation';
 import WebsiteManagement from './admin/WebsiteManagement';
@@ -34,8 +33,6 @@ export default function AdminDashboard({ onLogout, onNavigate }: AdminDashboardP
         return <AcademicManagement />;
       case 'content':
         return <ContentManagement />;
-      case 'premium':
-        return <PremiumManagement />;
       case 'premium-activation':
         return <PremiumActivationCodeManagement />;
       case 'activation':

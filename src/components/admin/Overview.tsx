@@ -46,13 +46,28 @@ export default function Overview() {
           unusedCodes: unusedCodes
         });
         
-        // Generate some sample analytics data for the chart, ideally this would be real data over time
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-        setChartData(months.map((m, i) => ({
-          name: m,
-          users: Math.floor(Math.random() * 50) + (i * 10),
-          revenue: Math.floor(Math.random() * 500) + (i * 200)
-        })));
+        // Fetch real registration data
+        const { data: profiles } = await supabase.from('profiles').select('created_at');
+        const counts: Record<string, number> = {};
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        if (profiles && profiles.length > 0) {
+          profiles.forEach(p => {
+            if (p.created_at) {
+              const date = new Date(p.created_at);
+              const m = months[date.getMonth()];
+              counts[m] = (counts[m] || 0) + 1;
+            }
+          });
+          
+          const sortedData = months.map(m => ({
+            name: m,
+            users: counts[m] || 0
+          }));
+          setChartData(sortedData);
+        } else {
+          setChartData([]);
+        }
         
       } catch (err) {
         console.error(err);
@@ -76,20 +91,17 @@ export default function Overview() {
   };
 
   const STATS = [
-    { title: 'Total Students', value: stats.students.toString(), trend: '+0%', icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
-    { title: 'Active Lecturers', value: stats.lecturers.toString(), trend: '+0%', icon: GraduationCap, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { title: 'Course Chats', value: stats.chats.toString(), trend: '+0%', icon: PlayCircle, color: 'text-purple-400', bg: 'bg-purple-500/10' },
+    { title: 'Total Students', value: stats.students.toString(), trend: 'Registered', icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { title: 'Active Lecturers', value: stats.lecturers.toString(), trend: 'Registered', icon: GraduationCap, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+    { title: 'Course Chats', value: stats.chats.toString(), trend: 'Active', icon: PlayCircle, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { title: 'Premium Codes', value: stats.codes.toString(), trend: `Unused: ${stats.unusedCodes}`, icon: Key, color: 'text-amber-400', bg: 'bg-amber-500/10' },
   ];
 
   const SYSTEM_HEALTH = [
-    { label: 'Database', status: 'Healthy', icon: Database },
-    { label: 'Storage Usage', status: 'Healthy', icon: HardDrive, usage: '0%' },
-    { label: 'CPU Usage', status: 'Healthy', icon: Cpu, usage: '0%' },
-    { label: 'Memory', status: 'Healthy', icon: Activity, usage: '0%' },
-    { label: 'API Status', status: 'Healthy', icon: Globe },
-    { label: 'AI Engine', status: 'Healthy', icon: Bot },
-    { label: 'Server Status', status: 'Healthy', icon: Server },
+    { label: 'Database', status: 'Online', icon: Database },
+    { label: 'Storage', status: 'Online', icon: HardDrive },
+    { label: 'Auth System', status: 'Online', icon: Key },
+    { label: 'File Uploads', status: 'Online', icon: Globe }
   ];
 
   return (
@@ -154,7 +166,7 @@ export default function Overview() {
               <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#020617]/50 border border-slate-800/50">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${
-                    item.status === 'Healthy' ? 'bg-emerald-500/10 text-emerald-400' :
+                    item.status === 'Online' ? 'bg-emerald-500/10 text-emerald-400' :
                     item.status === 'Warning' ? 'bg-amber-500/10 text-amber-400' :
                     'bg-rose-500/10 text-rose-400'
                   }`}>
@@ -163,9 +175,9 @@ export default function Overview() {
                   <span className="text-sm font-medium text-slate-200">{item.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  {item.usage && <span className="text-xs text-slate-400 font-mono">{item.usage}</span>}
+                  {'usage' in item && item.usage && <span className="text-xs text-slate-400 font-mono">{item.usage as string}</span>}
                   <div className={`w-2 h-2 rounded-full ${
-                    item.status === 'Healthy' ? 'bg-emerald-400' :
+                    item.status === 'Online' ? 'bg-emerald-400' :
                     item.status === 'Warning' ? 'bg-amber-400' :
                     'bg-rose-400'
                   }`} />

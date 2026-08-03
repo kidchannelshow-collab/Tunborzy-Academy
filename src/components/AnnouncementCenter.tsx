@@ -54,44 +54,45 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
   
   useEffect(() => {
     if (!profile) return;
+    let isMounted = true;
     const fetchAll = async () => {
       try {
-        const { data: annData } = await supabase.from('announcements')
-          .select('*')
-          .eq('target_role', profile.role)
-          .order('created_at', { ascending: false });
-        if (annData) setAnnouncements(annData);
-        
-        const { data: notifData } = await supabase.from('notifications')
-          .select('*')
-          .eq('user_id', profile.id)
-          .order('created_at', { ascending: false });
-        if (notifData) setNotifications(notifData);
+        const [annRes, notifRes] = await Promise.all([
+          supabase.from('announcements').select('*').eq('target_role', profile.role).order('created_at', { ascending: false }),
+          supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
+        ]);
+        if (isMounted && annRes.data) setAnnouncements(annRes.data);
+        if (isMounted && notifRes.data) setNotifications(notifRes.data);
       } catch (err) {
         console.error(err);
       }
     };
     fetchAll();
     
-    const channel = supabase.channel('announcement_notifications')
+    const channel = supabase.channel(`notifications_${profile.id}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${profile.id}`
-      }, (payload) => {
-        fetchAll();
+      }, () => {
+        // Only fetch notifications to optimize
+        supabase.from('notifications').select('*').eq('user_id', profile.id).order('created_at', { ascending: false })
+          .then(res => { if (isMounted && res.data) setNotifications(res.data); });
       })
       .subscribe();
       
     return () => {
+      isMounted = false;
       supabase.removeChannel(channel);
     };
   }, [profile?.id, profile?.role]);
 
-  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'bookmarked' | 'pinned'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'read' | 'bookmarked' | 'pinned'>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [toast, setToast] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
+  const showToast = (msg: string, type: 'success' | 'error') => { setToast({msg, type}); setTimeout(() => setToast(null), 3000); };
   
   // Create form state
   const [formTitle, setFormTitle] = useState('');
@@ -330,6 +331,26 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
 
   return (
     <div className="min-h-[100dvh] bg-[#020617] text-white p-4 sm:p-8">
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-xl ${
+              toast.type === 'success' 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+                : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle size={20} /> : <AlertTriangle size={20} />}
+            <span className="font-medium text-sm">{toast.msg}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="max-w-7xl mx-auto space-y-8">
         <div className="flex items-center justify-between">
           <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">

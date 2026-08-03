@@ -142,25 +142,9 @@ export default function RevisionModePage({ onLogout, onNavigate }: RevisionModeP
                     <History size={16} className="text-amber-500" />
                     Recently Viewed
                   </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-3 bg-[#020617]/50 rounded-xl border border-slate-800/50 hover:border-slate-700 cursor-pointer transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                        <Zap size={14} className="text-amber-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-display font-bold text-white truncate">Newton's Laws of Motion</p>
-                        <p className="text-[10px] text-slate-400">Physics • Important Formulas</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-[#020617]/50 rounded-xl border border-slate-800/50 hover:border-slate-700 cursor-pointer transition-colors">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                        <FileText size={14} className="text-blue-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-display font-bold text-white truncate">Atomic Structure</p>
-                        <p className="text-[10px] text-slate-400">Chemistry • Summary Notes</p>
-                      </div>
-                    </div>
+                  <div className="text-center py-6">
+                    <History size={24} className="text-slate-600 mx-auto mb-2" />
+                    <p className="text-xs text-slate-400">No recently viewed items.</p>
                   </div>
                 </div>
 

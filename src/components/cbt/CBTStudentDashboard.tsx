@@ -5,18 +5,26 @@ import { supabase } from '../../supabaseClient';
 
 export default function CBTStudentDashboard({ onStartExam, onOpenCustomBuilder }: any) {
   const [exams, setExams] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'available' | 'history' | 'leaderboard'>('available');
 
   useEffect(() => {
     async function loadData() {
-      const { data, error } = await supabase
-        .from('cbt_exams')
-        .select('*')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
+      const [examsRes, historyRes] = await Promise.all([
+        supabase
+          .from('cbt_exams')
+          .select('*')
+          .eq('is_published', true)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('cbt_attempts')
+          .select('*, cbt_exams(title)')
+          .order('end_time', { ascending: false })
+      ]);
       
-      if (data) setExams(data);
+      if (examsRes.data) setExams(examsRes.data);
+      if (historyRes.data) setHistory(historyRes.data);
       setLoading(false);
     }
     loadData();
@@ -131,11 +139,29 @@ export default function CBTStudentDashboard({ onStartExam, onOpenCustomBuilder }
               )}
 
               {activeTab === 'history' && (
-                <div className="bg-[#0f172a] border border-slate-800 rounded-2xl p-8 text-center">
-                  <History size={48} className="mx-auto text-slate-600 mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">No Past Attempts Found</h3>
-                  <p className="text-slate-400 max-w-sm mx-auto">Take a mock exam or build a custom practice session to see your history here.</p>
-                </div>
+                history.length > 0 ? (
+                  <div className="space-y-4">
+                    {history.map(attempt => (
+                      <div key={attempt.id} className="bg-[#0f172a] border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                        <div>
+                          <h4 className="text-white font-bold">{attempt.cbt_exams?.title || 'Custom Exam'}</h4>
+                          <p className="text-sm text-slate-400">{new Date(attempt.end_time || attempt.started_at).toLocaleDateString()}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-blue-400">
+                            {attempt.score !== null ? `${attempt.score}%` : 'In Progress'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-[#0f172a] border border-slate-800 rounded-2xl p-8 text-center">
+                    <History size={48} className="mx-auto text-slate-600 mb-4" />
+                    <h3 className="text-xl font-bold text-white mb-2">No Past Attempts Found</h3>
+                    <p className="text-slate-400 max-w-sm mx-auto">Take a mock exam or build a custom practice session to see your history here.</p>
+                  </div>
+                )
               )}
 
               {activeTab === 'leaderboard' && (
@@ -160,16 +186,20 @@ export default function CBTStudentDashboard({ onStartExam, onOpenCustomBuilder }
             <div className="space-y-4">
               <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
                 <div className="text-sm text-slate-400 mb-1">Average Score</div>
-                <div className="text-3xl font-display font-bold text-white">--%</div>
+                <div className="text-3xl font-display font-bold text-white">
+                  {history.length > 0 ? Math.round(history.reduce((acc, curr) => acc + (curr.score || 0), 0) / history.length) + '%' : '--%'}
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
                   <div className="text-sm text-slate-400 mb-1">Tests Taken</div>
-                  <div className="text-2xl font-bold text-white">0</div>
+                  <div className="text-2xl font-bold text-white">{history.length}</div>
                 </div>
                 <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
                   <div className="text-sm text-slate-400 mb-1">Questions</div>
-                  <div className="text-2xl font-bold text-white">0</div>
+                  <div className="text-2xl font-bold text-white">
+                    {history.reduce((acc, curr) => acc + (curr.total_questions || 0), 0)}
+                  </div>
                 </div>
               </div>
             </div>

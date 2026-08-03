@@ -11,17 +11,18 @@ export default function CBTCustomBuilder({ onBack, onStartCustom }: any) {
   const [difficulty, setDifficulty] = useState('Medium');
   const [examMode, setExamMode] = useState('Practice');
   const [calculator, setCalculator] = useState(false);
-  const [availableCourses, setAvailableCourses] = useState<{id: string, title: string}[]>([]);
+  const [availableSubjects, setAvailableSubjects] = useState<string[]>([]);
   
   useEffect(() => {
-    async function fetchCourses() {
+    async function fetchSubjects() {
       if (!supabase) return;
-      const { data } = await supabase.from('courses').select('id, title').eq('is_published', true);
+      const { data } = await supabase.from('cbt_exams').select('subject').eq('is_published', true);
       if (data) {
-        setAvailableCourses(data);
+        const unique = Array.from(new Set(data.map(d => d.subject)));
+        setAvailableSubjects(unique);
       }
     }
-    fetchCourses();
+    fetchSubjects();
   }, []);
 
   const toggleSubject = (s: string) => {
@@ -30,14 +31,9 @@ export default function CBTCustomBuilder({ onBack, onStartCustom }: any) {
   };
 
   const handleStart = () => {
-    const subjectTitles = availableCourses
-      .filter(c => subjects.includes(c.id))
-      .map(c => c.title);
-      
     onStartCustom({
       type: examType,
-      subjects, // These are course IDs
-      subjectTitles,
+      subjectTitles: subjects, // Subjects are now string names directly
       count: questionCount,
       time: timeLimit,
       difficulty,
@@ -98,13 +94,13 @@ export default function CBTCustomBuilder({ onBack, onStartCustom }: any) {
               <BookOpen className="text-blue-500" size={20} /> Select Subjects (Max 4)
             </h2>
             <div className="flex flex-wrap gap-3">
-              {availableCourses.length > 0 ? availableCourses.map(course => (
+              {availableSubjects.length > 0 ? availableSubjects.map(subject => (
                 <button
-                  key={course.id}
-                  onClick={() => toggleSubject(course.id)}
-                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-all ${subjects.includes(course.id) ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'}`}
+                  key={subject}
+                  onClick={() => toggleSubject(subject)}
+                  className={`px-4 py-2 rounded-full border text-sm font-medium transition-all ${subjects.includes(subject) ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'}`}
                 >
-                  {course.title}
+                  {subject}
                 </button>
               )) : (
                 <div className="text-slate-500 text-sm py-2">No subjects available</div>

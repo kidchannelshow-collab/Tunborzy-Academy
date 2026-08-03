@@ -21,9 +21,8 @@ export const uploadFileToSupabase = async (file: File, courseId: string, message
 
     return urlData.publicUrl;
   } catch (error) {
-    console.error("Upload error with Supabase, falling back to local object URL:", error);
-    // If Supabase upload fails (e.g. bucket doesn't exist or RLS), return local Object URL for preview
-    return URL.createObjectURL(file);
+    console.error("Upload error with Supabase:", error);
+    throw error;
   }
 };
 

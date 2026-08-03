@@ -64,20 +64,11 @@ export default function CourseChatSystem({ onLogout, onNavigate }: CourseChatSys
   const [isAtBottom, setIsAtBottom] = useState(true);
   const isAtBottomRef = useRef(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+
   const [isLoading, setIsLoading] = useState(true);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
   const [editingMessage, setEditingMessage] = useState<MessageData | null>(null);
-  const [forwardingMessage, setForwardingMessage] = useState<MessageData | null>(null);
+
   const [showSavedMessages, setShowSavedMessages] = useState(false);
   const [showCreateChatModal, setShowCreateChatModal] = useState(false);
   const [modalCourses, setModalCourses] = useState<any[]>([]);
@@ -195,10 +186,13 @@ export default function CourseChatSystem({ onLogout, onNavigate }: CourseChatSys
            if (!fbError) {
              const { data } = supabase.storage.from('course_materials').getPublicUrl(`chat/${fileName}`);
              finalUrl = data.publicUrl;
+           } else {
+             throw fbError || error;
            }
         }
       } catch (e) {
-        console.warn("Storage upload failed, keeping base64");
+        console.error("Storage upload failed", e);
+        throw e;
       }
       
       // Save to database
@@ -314,15 +308,6 @@ const handleDownload = (url: string, fileName: string = 'download') => {
         payload: { id: msgId }
       });
     }
-  };
-  
-  const handleForward = (msgId: string) => {
-    setActiveMessageMenu(null);
-  };
-  
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setActiveMessageMenu(null);
   };
 
   const scrollToBottom = () => {
@@ -527,23 +512,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
     // In a real implementation we'd append the name to the input text
   };
 
-  useEffect(() => {
-    // Simulate read receipts progression for our own messages
-    const timers: any[] = [];
-    messages.forEach(msg => {
-      if (msg.isMe && msg.readStatus === 'sent') {
-        const t1 = setTimeout(() => {
-          setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, readStatus: 'delivered' } : m));
-          const t2 = setTimeout(() => {
-            setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, readStatus: 'read' } : m));
-          }, 2000);
-          timers.push(t2);
-        }, 1500);
-        timers.push(t1);
-      }
-    });
-    return () => timers.forEach(t => clearTimeout(t));
-  }, [messages]);
+
 
   const handleSendMessage = async (text: string, files?: File[]) => {
     if (editingMessage) {
@@ -566,33 +535,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
        return;
     }
 
-    if (forwardingMessage) {
-       const forwardMsgId = crypto.randomUUID();
-       const forwardMsg = { ...forwardingMessage, id: forwardMsgId, sender: profile?.full_name || 'You', isMe: true, isForwarded: true, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), readStatus: 'sent' };
-       
-       if (activeRoomId && profile) {
-          await supabase.from('chat_messages').insert({
-             id: forwardMsgId,
-             room_id: activeRoomId,
-             sender_id: profile.id,
-             message_text: forwardMsg.text,
-             file_url: forwardMsg.fileUrl,
-             file_type: forwardMsg.type
-          });
-       }
-       
-       setMessages(prev => [...prev, forwardMsg]);
-       setTimeout(scrollToBottom, 50);
-       setForwardingMessage(null);
-       if (activeChat) {
-         await supabase.channel(`course_chat_${activeChat}`).send({
-           type: 'broadcast',
-           event: 'new_message',
-           payload: { ...forwardMsg, isMe: false }
-         });
-       }
-       return;
-    }
+    
     
     if (!text.trim() && (!files || files.length === 0)) return;
     
@@ -703,12 +646,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
       updatePresence('idle');
     }
 
-    setTimeout(() => {
-      setMessages(prev => prev.map(m => newMessages.find(nm => nm.id === m.id) && m.readStatus !== 'uploading' && m.readStatus !== 'failed' ? { ...m, readStatus: 'delivered' } : m));
-      setTimeout(() => {
-        setMessages(prev => prev.map(m => newMessages.find(nm => nm.id === m.id) && m.readStatus !== 'uploading' && m.readStatus !== 'failed' ? { ...m, readStatus: 'read' } : m));
-      }, 2000);
-    }, 1000);
+
   };
 
   const toggleReaction = async (messageId: string, emoji: string) => {
@@ -1109,20 +1047,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
           </AnimatePresence>
 
           
-            {messages.some(m => m.isPinned) && (
-            <div className="w-full mb-0 bg-[#020617] pt-2 pb-1 px-4 z-10">
-              <div onClick={() => setShowPinnedMessages(true)} className="bg-[#1e293b] border border-amber-500/30 rounded-xl p-3 shadow-md flex items-start gap-3 cursor-pointer hover:bg-[#1e293b]/80 transition-colors">
-                <Pin size={16} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-amber-500 font-semibold mb-0.5 flex justify-between">
-                    <span>Pinned Message{messages.filter(m => m.isPinned).length > 1 ? 's' : ''} ({messages.filter(m => m.isPinned).length})</span>
-                    <span className="text-slate-400 font-normal hover:text-white transition-colors">View all</span>
-                  </p>
-                  <p className="text-sm text-slate-300 truncate">{messages.filter(m => m.isPinned).pop()?.text || 'Attachment'}</p>
-                </div>
-              </div>
-            </div>
-          )}
+  
           <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar relative" onClick={() => { setActiveReactionMessage(null); setActiveMessageMenu(null); }}>
             
             
@@ -1375,35 +1300,15 @@ const handleDownload = (url: string, fileName: string = 'download') => {
                                 <button onClick={() => { setReplyingTo(msg); setActiveMessageMenu(null); }} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left w-full">
                                   <Reply size={16} /> Reply
                                 </button>
-                                <button onClick={() => handleForward(msg.id)} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left w-full">
-                                  <Forward size={16} /> Forward
-                                </button>
                                 {msg.type === 'voice' && msg.fileUrl && (
                                   <button onClick={() => handleDownload(msg.fileUrl!, msg.fileName || 'voice_note.webm')} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left w-full">
                                     <Download size={16} /> Download
                                   </button>
                                 )}
-                                <button onClick={() => handleCopyLink()} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left w-full">
-                                  <Copy size={16} /> Copy Link
-                                </button>
-                                <button onClick={() => { setActiveMessageMenu(null); }} className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors text-left w-full">
-                                  <Bookmark size={16} /> Bookmark
-                                </button>
                                 <div className="h-px bg-slate-700/50 my-1"></div>
-                                {msg.isMe ? (
-                                  <>
-                                    <button onClick={() => handleDelete(msg.id)} className="flex items-center gap-3 px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-left w-full">
-                                      <Trash2 size={16} /> Delete for Me
-                                    </button>
-                                    <button onClick={() => handleDelete(msg.id)} className="flex items-center gap-3 px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-left w-full">
-                                      <Trash2 size={16} /> Delete for Everyone
-                                    </button>
-                                  </>
-                                ) : (
-                                  <button onClick={() => handleDelete(msg.id)} className="flex items-center gap-3 px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-left w-full">
-                                    <Trash2 size={16} /> Delete for Me
-                                  </button>
-                                )}
+                                <button onClick={() => handleDelete(msg.id)} className="flex items-center gap-3 px-4 py-2 text-sm text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors text-left w-full">
+                                  <Trash2 size={16} /> Delete Message
+                                </button>
                               </div>
                             </motion.div>
                           )}
@@ -1526,7 +1431,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                 {messages.filter(m => m.bookmarkedBy?.includes(profile?.id || '')).length === 0 ? (
-                  <p className="text-slate-500 text-center text-sm mt-10">No saved messages.</p>
+                  <p className="text-slate-500 text-center text-sm mt-10 px-4">Saved messages are currently under development.</p>
                 ) : (
                   messages.filter(m => m.bookmarkedBy?.includes(profile?.id || '')).map(msg => (
                     <div key={msg.id} className="bg-[#1e293b] p-3 rounded-xl border border-slate-700/50 hover:border-emerald-500/30 transition-colors cursor-pointer" onClick={() => { setShowSavedMessages(false); scrollToMessage(msg.id); }}>
@@ -1562,7 +1467,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                 {messages.filter(m => m.isPinned).length === 0 ? (
-                  <p className="text-slate-500 text-center text-sm mt-10">No pinned messages.</p>
+                  <p className="text-slate-500 text-center text-sm mt-10 px-4">Message pinning is currently under development.</p>
                 ) : (
                   messages.filter(m => m.isPinned).map(msg => (
                     <div key={msg.id} className="bg-[#1e293b] p-3 rounded-xl border border-slate-700/50 hover:border-amber-500/30 transition-colors cursor-pointer" onClick={() => { setShowPinnedMessages(false); scrollToMessage(msg.id); }}>
@@ -1598,7 +1503,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
                 <div className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-500 flex items-center justify-center font-bold text-2xl mb-3 relative group">
                   {selectedChatInfo?.code?.substring(0, 2)}
                   {(profile?.role === 'Lecturer' || profile?.role === 'Admin') && (
-                    <button onClick={() => showToast('Group image update requested')} className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => showToast('Group image updates are under development.')} className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <Camera size={20} className="text-white" />
                     </button>
                   )}
@@ -1657,7 +1562,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
                             <p className="text-xs text-slate-500">{p.role} {p.status === 'typing' ? ' • typing...' : p.status === 'recording' ? ' • recording...' : ''}</p>
                           </div>
                           {(profile?.role === 'Lecturer' || profile?.role === 'Admin') && (
-                            <button onClick={() => showToast('User removed from group')} className="text-slate-500 hover:text-red-400 transition-colors">
+                            <button onClick={() => showToast('Removing users is under development')} className="text-slate-500 hover:text-red-400 transition-colors">
                               <UserMinus size={16} />
                             </button>
                           )}
@@ -1680,7 +1585,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
                             <p className="text-xs text-slate-500">{p.role} {status === 'typing' ? ' • typing...' : status === 'recording' ? ' • recording...' : ''}</p>
                           </div>
                           {(profile?.role === 'Lecturer' || profile?.role === 'Admin') && p.name !== profile?.full_name && (
-                            <button onClick={() => showToast('User removed from group')} className="text-slate-500 hover:text-red-400 transition-colors">
+                            <button onClick={() => showToast('Removing users is under development')} className="text-slate-500 hover:text-red-400 transition-colors">
                               <UserMinus size={16} />
                             </button>
                           )}
@@ -1690,7 +1595,7 @@ const handleDownload = (url: string, fileName: string = 'download') => {
                   )}
                 </div>
                 {(profile?.role === 'Lecturer' || profile?.role === 'Admin') && (
-                  <button onClick={() => showToast('Invitation link copied to clipboard')} className="mt-4 w-full py-2 flex items-center justify-center gap-2 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg transition-colors text-sm font-medium">
+                  <button onClick={() => showToast('Adding participants is under development')} className="mt-4 w-full py-2 flex items-center justify-center gap-2 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg transition-colors text-sm font-medium">
                     <UserPlus size={16} /> Add Participant
                   </button>
                 )}

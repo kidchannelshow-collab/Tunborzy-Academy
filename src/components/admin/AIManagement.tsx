@@ -31,7 +31,7 @@ export default function AIManagement() {
         message={actionMessage}
         isIrreversible={isIrreversible}
       />
-
+      
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-2 flex items-center gap-3">
@@ -66,7 +66,8 @@ export default function AIManagement() {
                 <label className="block text-sm font-semibold text-slate-300 mb-2">Default Welcome Message</label>
                 <textarea 
                   rows={4}
-                  defaultValue="Hi there! I'm your TUNBORZY AI Study Assistant. How can I help you with your studies today?"
+                  defaultValue=""
+                  placeholder="Set a custom welcome message for the AI..."
                   className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 resize-none"
                 />
               </div>
@@ -84,7 +85,7 @@ export default function AIManagement() {
             </div>
           </div>
         </div>
-
+        
         <div className="space-y-6">
           <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6">
             <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
@@ -93,15 +94,15 @@ export default function AIManagement() {
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
                 <span className="text-sm text-slate-400">Total Conversations</span>
-                <span className="text-xl font-bold text-white">45,210</span>
+                <span className="text-xl font-bold text-white">0</span>
               </div>
               <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
                 <span className="text-sm text-slate-400">Active Sessions</span>
-                <span className="text-xl font-bold text-emerald-400">124</span>
+                <span className="text-xl font-bold text-emerald-400">0</span>
               </div>
               <div className="flex justify-between items-center pb-4">
                 <span className="text-sm text-slate-400">Avg. Response Time</span>
-                <span className="text-xl font-bold text-white">1.2s</span>
+                <span className="text-xl font-bold text-white">--</span>
               </div>
             </div>
           </div>

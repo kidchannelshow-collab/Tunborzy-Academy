@@ -14,8 +14,6 @@ export default function Overview() {
   const [stats, setStats] = useState({
     courses: 0,
     active_courses: 0,
-    upcoming_classes: 0,
-    assignments: 0,
     cbt: 0,
     students: 0
   });
@@ -32,23 +30,20 @@ export default function Overview() {
   const fetchStats = async () => {
     if (!supabase || !profile) return;
     try {
-      const [coursesRes, classesRes, assignmentsRes, cbtRes] = await Promise.all([
+      const [coursesRes, cbtRes, enrollmentsRes] = await Promise.all([
         supabase.from('courses').select('id, is_archived').eq('lecturer_id', profile.id),
-        supabase.from('live_classes').select('id', { count: 'exact', head: true }).eq('lecturer_id', profile.id).gte('start_time', new Date().toISOString()),
-        supabase.from('assignments').select('id', { count: 'exact', head: true }).eq('lecturer_id', profile.id),
-        supabase.from('cbt_exams').select('id', { count: 'exact', head: true }).eq('lecturer_id', profile.id)
+        supabase.from('cbt_exams').select('id', { count: 'exact', head: true }).eq('lecturer_id', profile.id),
+        supabase.from('course_enrollments').select('student_id, courses!inner(lecturer_id)').eq('courses.lecturer_id', profile.id)
       ]);
       
-      const studentsRes = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Student');
       const courses = coursesRes.data || [];
+      const uniqueStudentCount = new Set((enrollmentsRes.data || []).map((e: any) => e.student_id)).size;
       
       setStats({
         courses: courses.length,
         active_courses: courses.filter(c => !c.is_archived).length,
-        upcoming_classes: classesRes.count || 0,
-        assignments: assignmentsRes.count || 0,
         cbt: cbtRes.count || 0,
-        students: studentsRes.count || 0
+        students: uniqueStudentCount
       });
     } catch (e) {
       console.error(e);
@@ -71,8 +66,6 @@ export default function Overview() {
     { label: 'Total Courses', value: stats.courses, icon: BookOpen, color: 'text-indigo-500', bg: 'bg-indigo-500/10' },
     { label: 'Active Courses', value: stats.active_courses, icon: Library, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
     { label: 'Total Students', value: stats.students, icon: Users, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { label: 'Upcoming Classes', value: stats.upcoming_classes, icon: Clock, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    { label: 'Pending Assignments', value: stats.assignments, icon: Book, color: 'text-rose-500', bg: 'bg-rose-500/10' },
     { label: 'CBT Exams Created', value: stats.cbt, icon: FileText, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
   ];
 
@@ -92,7 +85,7 @@ export default function Overview() {
             {greeting}, {displayName}
           </h1>
           <p className="text-sm font-body text-slate-400">
-            Manage your courses, track student performance, and schedule classes.
+            Manage your courses and track student performance.
           </p>
         </div>
       </div>
@@ -135,7 +128,7 @@ export default function Overview() {
           <h3 className="text-xl font-display font-bold text-white mb-6">Recent Activity</h3>
           
           <div className="space-y-6">
-            {recentActivities.map((activity) => (
+            {recentActivities.length > 0 ? recentActivities.map((activity) => (
               <div key={activity.id} className="flex gap-4">
                 <div className={`w-10 h-10 rounded-full bg-slate-900 flex items-center justify-center shrink-0 border border-slate-800 ${activity.color}`}>
                   <activity.icon size={16} />
@@ -145,7 +138,11 @@ export default function Overview() {
                   <p className="text-xs text-slate-500 mt-1">{activity.time}</p>
                 </div>
               </div>
-            ))}
+            )) : (
+              <div className="text-center py-8">
+                <p className="text-slate-400 font-medium">No recent activity.</p>
+              </div>
+            )}
           </div>
           
           <button className="w-full mt-6 py-3 border border-slate-800 rounded-xl text-slate-400 text-sm font-semibold hover:text-white hover:bg-slate-800 transition-colors">

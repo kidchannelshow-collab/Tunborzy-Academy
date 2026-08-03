@@ -19,6 +19,7 @@ interface Message {
   content: string;
   timestamp: string;
   isStreaming?: boolean;
+  fileData?: { mimeType: string; data: string; name: string };
 }
 
 const QUICK_SUGGESTIONS = [
@@ -79,31 +80,109 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'pdf') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'pdf') => {
     const file = e.target.files?.[0];
-    if (file) {
-      const newUserMsg: Message = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: `[Uploaded ${type.toUpperCase()}: ${file.name}]`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, newUserMsg]);
-      setIsGenerating(true);
-      setTimeout(() => {
-        setIsGenerating(false);
-        setMessages(prev => [...prev, {
-          id: (Date.now() + 1).toString(),
-          role: 'ai',
-          content: `I've received your ${type} (${file.name}). How can I help you analyze it?`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        }]);
-      }, 1500);
-    }
+    if (!file) return;
+    
     // Reset input
     if (e.target) {
       e.target.value = '';
     }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64Data = (event.target?.result as string).split(',')[1];
+      
+      const newUserMsg: Message = {
+        id: Date.now().toString(),
+        role: 'user',
+        content: `[Uploaded ${type.toUpperCase()}: ${file.name}] Please analyze this ${type}.`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        fileData: { mimeType: file.type, data: base64Data, name: file.name }
+      };
+      
+      const newMessages = [...messages, newUserMsg];
+      setMessages(newMessages);
+      setIsGenerating(true);
+      
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messages: newMessages.slice(-20),
+            userRole: role
+          })
+        });
+
+        if (!response.ok) throw new Error('Failed to get response');
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        const aiMsgId = (Date.now() + 1).toString();
+        let aiContent = '';
+        
+        setMessages(prev => [...prev, {
+          id: aiMsgId,
+          role: 'ai',
+          content: '',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isStreaming: true
+        }]);
+
+        if (reader) {
+          let done = false;
+          while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            if (value) {
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split('\n'); //\n'); //\n');
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6);
+                  if (data === '[DONE]') break;
+                  try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.text) {
+                      aiContent += parsed.text;
+                      setMessages(prev => prev.map(m => 
+                        m.id === aiMsgId ? { ...m, content: aiContent } : m
+                      ));
+                    } else if (parsed.error) {
+                      aiContent += '\n\n**Error:** ' + parsed.error;
+                      setMessages(prev => prev.map(m => 
+                        m.id === aiMsgId ? { ...m, content: aiContent } : m
+                      ));
+                    }
+                  } catch (e) {
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        setMessages(prev => prev.map(m => 
+          m.id === aiMsgId ? { ...m, isStreaming: false } : m
+        ));
+      } catch (err) {
+        console.error(err);
+        setMessages(prev => [...prev, {
+          id: Date.now().toString(),
+          role: 'ai',
+          content: 'Sorry, I encountered an error while analyzing the file. Please try again.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          isStreaming: false
+        }]);
+      } finally {
+        setIsGenerating(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSendMessage = async (customText?: string | React.MouseEvent) => {
@@ -135,7 +214,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: newMessages,
+          messages: newMessages.slice(-20),
           userRole: role
         })
       });
@@ -165,7 +244,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
           done = readerDone;
           if (value) {
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
+            const lines = chunk.split('\n'); //\n'); //\n');
             for (const line of lines) {
               if (line.startsWith('data: ')) {
                 const data = line.slice(6);
@@ -289,7 +368,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center">
               <Bot size={18} className="text-white" />
             </div>
-            <span className="font-display font-bold text-lg tracking-wide text-white">TUNBORZY AI</span>
+            <span className="font-display font-bold text-lg tracking-wide text-white">TONBORZY AI Tutor</span>
           </div>
           <div className="flex items-center gap-1">
             {onBack && (
@@ -318,32 +397,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-2 space-y-6">
-          <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Recent Chats</h3>
-            <div className="space-y-1">
-              {['Integration in Calculus', 'Organic Chemistry Basics', 'Photosynthesis Steps'].map((chat, i) => (
-                <button key={i} className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors group">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <MessageSquare size={16} className="text-slate-500 group-hover:text-indigo-400 flex-shrink-0" />
-                    <span className="truncate">{chat}</span>
-                  </div>
-                  <MoreVertical size={14} className="text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          <div>
-            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Saved</h3>
-            <div className="space-y-1">
-              <button className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors group">
-                <div className="flex items-center gap-3 overflow-hidden">
-                  <Bookmark size={16} className="text-amber-500 group-hover:text-amber-400 flex-shrink-0" />
-                  <span className="truncate">Important Formulas</span>
-                </div>
-              </button>
-            </div>
-          </div>
+
         </div>
 
         <div className="p-4 border-t border-slate-800 space-y-1">
@@ -351,7 +405,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
             
             <span className="absolute right-2 bg-slate-800 text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity">Soon</span>
           </button>
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
+          <button onClick={() => setMessages([])} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
             <Trash2 size={16} className="text-slate-500" /> Clear Conversations
           </button>
           <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-slate-800 transition-colors">
@@ -555,7 +609,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
               </div>
             </div>
             <div className="text-center mt-3">
-              <p className="text-[11px] text-slate-500">TUNBORZY AI can make mistakes. Verify important academic information.</p>
+              <p className="text-[11px] text-slate-500">TONBORZY AI Tutor can make mistakes. Verify important academic information.</p>
             </div>
           </div>
         </div>

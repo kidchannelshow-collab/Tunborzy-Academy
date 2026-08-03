@@ -136,7 +136,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         return;
       }
 
-      console.log('Signing up Student...', { emailForAuth });
+      
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: emailForAuth,
         password,
@@ -178,7 +178,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
       }
 
       // 6. wait until authentication has completed
-      console.log('Waiting for authentication to complete...');
+      
       
       // We ensure they are logged in by attempting a sign-in if session is missing.
       let sessionToUse = authData.session;
@@ -206,7 +206,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
 
       const userId = currentUser.id;
       
-      console.log('Frontend Profile Insert Location reached.', { userId });
+      
       
       // 6. insert using id = auth.uid()
       const profilePayload = {
@@ -221,7 +221,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         created_at: new Date().toISOString()
       };
       
-      console.log('Inserting profile payload:', profilePayload);
+      
 
       const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
 
@@ -231,7 +231,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         throw new Error('Database Error: ' + profileError.message);
       }
       
-      console.log('Student profile inserted successfully!');
+      
       
       await refreshProfile();
       setSuccessMsg('Registration successful. Redirecting...');

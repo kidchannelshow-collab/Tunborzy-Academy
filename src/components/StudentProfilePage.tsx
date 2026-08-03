@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, Copy, Check, Mail, GraduationCap, Calendar, Star, Phone, AlignLeft, BarChart, 
   MessageCircle, FileText, Target,
-  Edit2, Shield, ArrowRight
+  Edit2, Shield, ArrowRight, History
 } from 'lucide-react';
 import DashboardLayout from './dashboard/DashboardLayout';
 import { useProfile } from '../lib/useProfile';
@@ -105,6 +105,8 @@ export default function StudentProfilePage({ onLogout, onNavigate }: StudentProf
   const avatarUrl = profile?.avatar_url || null;
   const premiumStatus = profile?.premium_status || 'Free';
   const initials = fullName !== '—' ? fullName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : 'ST';
+  const department = profile?.department || '—';
+  const faculty = profile?.faculty || '—';
 
   const [copied, setCopied] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -224,6 +226,12 @@ export default function StudentProfilePage({ onLogout, onNavigate }: StudentProf
                       <p className="text-[10px] text-slate-500 uppercase tracking-wider mb-0.5">Academic Details</p>
                       <p className="text-slate-200 truncate">{portal} • {course}</p>
                       <p className="text-xs text-slate-400 truncate">{university}</p>
+                      {role === 'Lecturer' && (
+                        <>
+                          <p className="text-xs text-slate-400 truncate mt-1">Dept: {department}</p>
+                          <p className="text-xs text-slate-400 truncate">Faculty: {faculty}</p>
+                        </>
+                      )}
                     </div>
                   </div>
                   
@@ -330,7 +338,12 @@ export default function StudentProfilePage({ onLogout, onNavigate }: StudentProf
                 </div>
                 
                 <div className="space-y-4">
-                  {recentActivity.map((activity, idx) => (
+                  {recentActivity.length === 0 ? (
+                    <div className="text-center py-8 bg-[#020617]/50 rounded-2xl border border-slate-800/50">
+                      <History className="w-12 h-12 text-slate-700 mx-auto mb-3" />
+                      <p className="text-slate-400 font-medium">No recent activity found</p>
+                    </div>
+                  ) : recentActivity.map((activity, idx) => (
                     <div 
                       key={idx}
                       className="flex items-start gap-4 p-4 rounded-2xl bg-[#020617]/50 border border-slate-800/50 hover:border-slate-700 transition-colors"

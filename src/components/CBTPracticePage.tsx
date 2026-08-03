@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import DashboardLayout from './dashboard/DashboardLayout';
 import { useProfile } from '../lib/useProfile';
 import CBTStudentDashboard from './cbt/CBTStudentDashboard';
-import CBTAdminDashboard from './cbt/CBTAdminDashboard';
+import CBTManagement from './lecturer/CBTManagement';
 import CBTExamTaker from './cbt/CBTExamTaker';
 import CBTResultView from './cbt/CBTResultView';
 import CBTReviewView from './cbt/CBTReviewView';
@@ -88,7 +88,7 @@ export default function CBTPracticePage({ onLogout, onNavigate }: { onLogout: ()
         <CBTStudentDashboard onStartExam={handleStartExam} onViewResult={handleReviewExam} onOpenCustomBuilder={() => setView('custom')} />
       )}
       {view === 'admin' && (
-        <CBTAdminDashboard />
+        <CBTManagement />
       )}
       {view === 'exam' && activeExamId && activeAttemptId && (
         <CBTExamTaker 

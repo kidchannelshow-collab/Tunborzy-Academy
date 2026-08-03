@@ -156,7 +156,7 @@ export default function CBTResultView({ attemptId, onReview, onBackToDashboard }
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-[#0f172a] border border-slate-800 rounded-3xl p-6">
             <h3 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
-              <Brain className="text-amber-500" size={20} /> AI Recommendations
+              <Brain className="text-amber-500" size={20} /> Performance Insights
             </h3>
             <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-amber-500 mb-6 text-sm leading-relaxed">
               Based on your performance, you answered {result.total_correct} correctly but missed {result.total_wrong} questions. Your accuracy rate is {accuracy}%. To improve to an A grade, focus your revision on the topics related to the {result.total_wrong} questions you missed. Taking another practice test in 'Revision Mode' will automatically target these weak areas.
@@ -171,7 +171,7 @@ export default function CBTResultView({ attemptId, onReview, onBackToDashboard }
                 <p className="text-xs text-slate-400">See detailed explanations for every question</p>
               </button>
               
-              <button className="p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl transition-colors text-left group">
+              <button onClick={onBackToDashboard} className="p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl transition-colors text-left group">
                 <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                   <Target size={20} />
                 </div>
@@ -181,29 +181,7 @@ export default function CBTResultView({ attemptId, onReview, onBackToDashboard }
             </div>
           </div>
           
-          <div className="bg-[#0f172a] border border-slate-800 rounded-3xl p-6">
-            <h3 className="font-bold text-white mb-4">Topic Breakdown (Simulated)</h3>
-            <div className="space-y-4">
-              {[
-                { name: 'Algebra', score: 80 },
-                { name: 'Calculus', score: 45 },
-                { name: 'Geometry', score: 90 },
-              ].map(topic => (
-                <div key={topic.name}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-300 font-medium">{topic.name}</span>
-                    <span className={topic.score >= 70 ? 'text-emerald-500' : topic.score >= 50 ? 'text-amber-500' : 'text-rose-500'}>{topic.score}%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full ${topic.score >= 70 ? 'bg-emerald-500' : topic.score >= 50 ? 'bg-amber-500' : 'bg-rose-500'} rounded-full`}
-                      style={{ width: `${topic.score}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
     </motion.div>

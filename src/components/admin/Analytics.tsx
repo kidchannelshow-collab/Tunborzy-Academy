@@ -52,7 +52,6 @@ export default function Analytics() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [topChats, setTopChats] = useState<RankedItem[]>([]);
-  const [topMaterials, setTopMaterials] = useState<RankedItem[]>([]);
   const [topExams, setTopExams] = useState<RankedItem[]>([]);
   const [isLoadingActivity, setIsLoadingActivity] = useState(true);
 
@@ -79,14 +78,14 @@ export default function Analytics() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [chats, materials, exams] = await Promise.all([
+      const [chats, exams] = await Promise.all([
         topByJoinedCount('chat_messages', 'room_id', 'chat_rooms', 'course_title'),
-        topByJoinedCount('material_downloads', 'material_id', 'materials', 'title'),
         topByJoinedCount('cbt_attempts', 'exam_id', 'cbt_exams', 'title'),
       ]);
+      const materials: RankedItem[] = []; // No material downloads tracking yet
       if (cancelled) return;
       setTopChats(chats);
-      setTopMaterials(materials);
+      
       setTopExams(exams);
       setIsLoadingActivity(false);
     })();
@@ -217,18 +216,7 @@ export default function Analytics() {
           <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
             <Eye className="text-emerald-400" size={20} /> Most Viewed Notes
           </h3>
-          <div className="space-y-4">
-            {isLoadingActivity ? (
-              <p className="text-sm text-slate-500">Loading...</p>
-            ) : topMaterials.length === 0 ? (
-              <p className="text-sm text-slate-500">No downloads recorded yet.</p>
-            ) : topMaterials.map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[#020617]/50 border border-slate-800/50 hover:border-emerald-500/30 transition-colors cursor-default">
-                <span className="text-sm font-medium text-slate-200">{item.title}</span>
-                <span className="text-xs text-slate-400 font-mono">{item.count} DLs</span>
-              </div>
-            ))}
-          </div>
+            <p className="text-sm text-slate-500">Analytics tracking for material downloads will be implemented in a future update.</p>
         </div>
         
         <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6">

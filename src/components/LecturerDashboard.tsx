@@ -5,11 +5,8 @@ import Overview from './lecturer/Overview';
 import CourseManagement from './lecturer/CourseManagement';
 import UploadCenter from './lecturer/UploadCenter';
 import CBTManagement from './lecturer/CBTManagement';
-import PastQuestionsManagement from './lecturer/PastQuestionsManagement';
-import ResourceLibraryManagement from './lecturer/ResourceLibraryManagement';
 import StudentInsights from './lecturer/StudentInsights';
 import Announcements from './lecturer/Announcements';
-import AssignmentManagement from './lecturer/AssignmentManagement';
 import LecturerProfile from './lecturer/LecturerProfile';
 import TunborzyAI from './TunborzyAI';
 
@@ -33,17 +30,12 @@ export default function LecturerDashboard({ onLogout, onNavigate }: LecturerDash
         return <UploadCenter />;
       case 'cbt':
         return <CBTManagement />;
-      case 'past-questions':
-        return <PastQuestionsManagement />;
-      case 'resources':
-        return <ResourceLibraryManagement />;
       case 'insights': // Analytics
       case 'students': // Student Management
         return <StudentInsights />;
       case 'announcements':
         return <Announcements />;
-      case 'assignments':
-        return <AssignmentManagement />;
+
       case 'ai-tools':
         return <TunborzyAI role="lecturer" />;
       case 'profile':

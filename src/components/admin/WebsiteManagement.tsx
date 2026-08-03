@@ -47,31 +47,11 @@ export default function WebsiteManagement() {
         <p className="text-sm font-body text-slate-400">Edit and manage all visible parts of the TUNBORZY platform.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {SECTIONS.map((section, idx) => (
-          <div key={idx} className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6 group hover:border-blue-500/50 transition-colors">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <section.icon size={24} className="text-blue-400" />
-              </div>
-              <div className="flex gap-2">
-                <button className="p-2 bg-[#020617] hover:bg-blue-500 hover:text-white rounded-lg text-slate-400 transition-colors">
-                  <Edit2 size={16} />
-                </button>
-                {section.hasDelete && (
-                  <button 
-                    className="p-2 bg-[#020617] hover:bg-rose-500 hover:text-white rounded-lg text-slate-400 transition-colors"
-                    onClick={() => handleDangerousAction(`Delete ${section.title}`, `Are you sure you want to permanently delete the current ${section.title}?`, true)}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-1">{section.title}</h3>
-            <p className="text-sm text-slate-400">{section.desc}</p>
-          </div>
-        ))}
+      <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-8 text-center">
+        <h2 className="text-xl font-bold text-white mb-4">Under Development</h2>
+        <p className="text-slate-400 max-w-lg mx-auto">
+          Website management features (Landing Page Banner, Logo, Copy, Contact Info) will be implemented in a future update.
+        </p>
       </div>
     </motion.div>
   );

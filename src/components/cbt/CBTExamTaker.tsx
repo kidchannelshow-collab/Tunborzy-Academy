@@ -236,7 +236,7 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
       {/* Header */}
       <header className="bg-[#0f172a] border-b border-slate-800 p-3 md:p-4 flex items-center justify-between shadow-md">
         <div>
-          <h1 className="text-lg md:text-xl font-display font-bold text-white line-clamp-1">{customConfig ? `Custom Practice: ${customConfig.subjects.join(', ')}` : 'Candidate Assessment'}</h1>
+          <h1 className="text-lg md:text-xl font-display font-bold text-white line-clamp-1">{customConfig ? `Custom Practice: ${customConfig.subjectTitles?.join(', ') || 'Custom Assessment'}` : 'Candidate Assessment'}</h1>
           <p className="text-xs md:text-sm text-slate-400 font-body">{customConfig ? customConfig.type : 'Exam Mode'}</p>
         </div>
         

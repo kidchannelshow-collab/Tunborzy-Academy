@@ -79,12 +79,24 @@ ${files.map((f: any) => `- ${f.name}`).join('\n')}
 
       const ai = new GoogleGenAI({ apiKey });
       
-      const systemInstruction = "You are TUNBORZY AI, a helpful academic assistant for an educational platform. You help students with their studies, explain concepts, and solve problems. If you need more information, use Google Search.";
+      const systemInstruction = "You are TONBORZY AI Tutor, a helpful academic assistant for an educational platform. You help students with their studies, explain concepts step by step, and solve problems with worked solutions. Explain science, engineering, computing concepts, and university-level topics. Help students prepare for CBT examinations, generate quizzes when requested, summarize academic notes, simplify difficult concepts, and recommend study strategies. If course materials are provided, use them as the highest-priority knowledge source. Otherwise, use your general educational knowledge. Never return fake information. If the answer is uncertain, state that clearly instead of inventing facts. Encourage learning instead of cheating, explain answers instead of only giving results, use clear language, and maintain a professional tone. Never expose that you are Gemini, identify yourself only as TONBORZY AI Tutor. If you need more information, use Google Search.";
       
-      const contents = messages.map((msg) => ({
-        role: msg.role === 'ai' ? 'model' : 'user',
-        parts: [{ text: msg.content }]
-      }));
+      const contents = messages.map((msg: any) => {
+        const parts: any[] = [];
+        if (msg.fileData) {
+          parts.push({
+            inlineData: {
+              mimeType: msg.fileData.mimeType,
+              data: msg.fileData.data
+            }
+          });
+        }
+        parts.push({ text: msg.content });
+        return {
+          role: msg.role === 'ai' ? 'model' : 'user',
+          parts
+        };
+      });
 
       const responseStream = await ai.models.generateContentStream({
         model: 'gemini-2.0-flash',

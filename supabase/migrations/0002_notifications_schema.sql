@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     type TEXT NOT NULL,
     link TEXT,
     is_read BOOLEAN DEFAULT false,
+    is_pinned BOOLEAN DEFAULT false,
+    is_bookmarked BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -21,7 +23,7 @@ CREATE POLICY "Users can update their own notifications"
 
 CREATE POLICY "System can insert notifications"
     ON public.notifications FOR INSERT
-    WITH CHECK (true); -- In a real app, this should be restricted to authenticated users or triggers
+    WITH CHECK (auth.uid() = user_id); -- Secured
 
 CREATE POLICY "Users can delete their own notifications"
     ON public.notifications FOR DELETE

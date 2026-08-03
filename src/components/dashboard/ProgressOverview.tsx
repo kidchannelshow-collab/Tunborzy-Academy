@@ -10,8 +10,6 @@ export default function ProgressOverview() {
     topicsCount: 0,
     cbtCount: 0,
     cbtAvg: 0,
-    streak: 1,
-    progress: 0,
   });
 
   useEffect(() => {
@@ -51,10 +49,7 @@ export default function ProgressOverview() {
           topicsCount: enrolledCount || 0,
           cbtCount,
           cbtAvg,
-          streak: 1,
-          progress: cbtCount > 0 ? 5 : 0,
         });
-
       } catch (err) {
         console.error(err);
       }
@@ -66,8 +61,6 @@ export default function ProgressOverview() {
     { label: 'Courses Enrolled', value: `${statsData.topicsCount}`, icon: BookOpen, color: 'text-blue-500', bg: 'bg-blue-500/10' },
     { label: 'CBT Tests Taken', value: `${statsData.cbtCount}`, icon: Clock, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
     { label: 'CBT Score Avg', value: `${statsData.cbtAvg}%`, icon: Target, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    { label: 'Learning Streak', value: `${statsData.streak} Days`, icon: Flame, color: 'text-amber-500', bg: 'bg-amber-500/10' },
-    { label: 'Weekly Progress', value: `+${statsData.progress}%`, icon: TrendingUp, color: 'text-rose-500', bg: 'bg-rose-500/10' },
   ];
 
   return (
@@ -75,7 +68,7 @@ export default function ProgressOverview() {
       <h3 className="text-lg font-display font-bold text-white mb-4">
         Today's Progress
       </h3>
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {stats.map((stat, index) => (
           <motion.div
             key={index}

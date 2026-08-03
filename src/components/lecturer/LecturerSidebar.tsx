@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  LayoutDashboard, BookOpen, UploadCloud, FileText, BarChart2, Bell, LogOut, X, Users, Bot, MessageSquare, ClipboardList
+  LayoutDashboard, BookOpen, UploadCloud, FileText, BarChart2, Bell, LogOut, X, Users, Bot, MessageSquare
 } from 'lucide-react';
 
 interface LecturerSidebarProps {
@@ -18,7 +18,6 @@ export default function LecturerSidebar({ isOpen, setIsOpen, onLogout, currentVi
     
     { icon: MessageSquare, label: 'Course Chats', id: 'chats' },
     { icon: UploadCloud, label: 'Material Center', id: 'upload' },
-    { icon: ClipboardList, label: 'Assignments', id: 'assignments' },
     { icon: FileText, label: 'CBT Manager', id: 'cbt' },
     { icon: Users, label: 'My Students', id: 'students' },
     { icon: BarChart2, label: 'Analytics', id: 'insights' },

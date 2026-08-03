@@ -1,14 +1,15 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { Lock, Crown, Library, RefreshCcw, Bot, FileText, PenTool, CheckCircle2, Calendar, Clock, Key } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useProfile } from '../../lib/useProfile';
 
 interface PremiumFeaturesProps { onNavigate?: (view: string) => void; }
 
 export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
+  const { profile } = useProfile();
   const [showModal, setShowModal] = useState(false);
-  // Defaulting to false as requested to show the non-activated state
-  const [isPremium, setIsPremium] = useState(false); 
-  const [copied, setCopied] = useState(false);
+  
+  const isPremium = profile?.premium_status === 'Active';
 
   const lockedFeatures = [
     { title: 'Resource Library', icon: Library, desc: 'Access comprehensive study materials and notes.', id: 'resources' },
@@ -54,7 +55,7 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
                     </span>
                   ) : (
                     <span 
-                      onDoubleClick={() => setIsPremium(true)} 
+                       
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 text-xs font-bold uppercase tracking-wider border border-slate-700 select-none"
                     >
                       Not Activated
@@ -79,16 +80,8 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
                   </div>
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400 flex items-center gap-1.5 font-body"><Calendar size={14} /> Expiry:</span>
-                      <span className="text-white font-medium font-poppins">Dec 31, 2026</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400 flex items-center gap-1.5 font-body"><Clock size={14} /> Remaining:</span>
-                      <span className="text-amber-500 font-medium font-poppins">170 Days</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-400 flex items-center gap-1.5 font-body"><Key size={14} /> Code:</span>
-                      <span className="text-slate-300 font-mono tracking-widest">ABCD••••</span>
+                      <span className="text-slate-400 flex items-center gap-1.5 font-body">Status:</span>
+                      <span className="text-amber-500 font-medium font-poppins">Fully Unlocked</span>
                     </div>
                   </div>
                 </motion.div>

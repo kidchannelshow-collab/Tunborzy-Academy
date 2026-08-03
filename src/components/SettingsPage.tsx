@@ -61,6 +61,8 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
   const [universityInput, setUniversityInput] = useState(profile?.university || '');
   const [courseInput, setCourseInput] = useState(profile?.course || '');
   const [levelInput, setLevelInput] = useState(profile?.level || '');
+  const [departmentInput, setDepartmentInput] = useState(profile?.department || '');
+  const [facultyInput, setFacultyInput] = useState(profile?.faculty || '');
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
     // sync when profile loads
   useEffect(() => {
@@ -72,6 +74,8 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
       setUniversityInput(profile.university || '');
       setCourseInput(profile.course || '');
       setLevelInput(profile.level || '');
+      setDepartmentInput(profile.department || '');
+      setFacultyInput(profile.faculty || '');
       setAvatarUrl(profile.avatar_url || '');
     }
   }, [profile?.id, profile?.role]);
@@ -157,42 +161,34 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
       
       if (avatarUrl && avatarUrl.startsWith('data:image')) {
         const fileName = `${profile.id}-${Date.now()}.jpg`;
-        try {
-          const arr = avatarUrl.split(',');
-          const mime = arr[0].match(/:(.*?);/)[1];
-          const bstr = atob(arr[1]);
-          let n = bstr.length;
-          const u8arr = new Uint8Array(n);
-          while (n--) {
-            u8arr[n] = bstr.charCodeAt(n);
-          }
-          const blob = new Blob([u8arr], { type: mime });
+        const arr = avatarUrl.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, blob, { upsert: true, contentType: mime });
           
-          const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(fileName, blob, { upsert: true, contentType: mime });
-            
-          if (!uploadError) {
-            const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-            finalAvatarUrl = data.publicUrl;
-            setAvatarUrl(finalAvatarUrl);
-          } else {
-             console.warn("Storage upload failed, keeping base64 or previous URL", uploadError);
-          }
-        } catch(e) {
-          console.warn("Error processing image upload", e);
+        if (!uploadError) {
+          const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+          finalAvatarUrl = data.publicUrl;
+          setAvatarUrl(finalAvatarUrl);
+        } else {
+           throw new Error("Failed to upload avatar image. The storage bucket might not be configured.");
         }
       }
 
-      // 1. Update profiles table
+      // 1. Update profiles table (only columns that actually exist in the DB schema to avoid PGRST204)
       const { error } = await supabase.from('profiles').update({
         full_name: nameInput,
-        phone_number: phoneInput,
-        bio: bioInput,
-        university: universityInput,
-        course: courseInput,
-        level: levelInput,
-        avatar_url: finalAvatarUrl
+        university: universityInput || null,
+        course: courseInput || null
       }).eq('id', profile.id);
       
       if (error) {
@@ -200,6 +196,13 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
       }
       
       // 2. ALWAYS update user metadata as a robust fallback to guarantee persistence
+      if (emailInput !== profile.email) {
+        const { error: emailError } = await supabase.auth.updateUser({ email: emailInput });
+        if (emailError) throw new Error("Failed to update email: " + emailError.message);
+        
+        await supabase.from('profiles').update({ email: emailInput }).eq('id', profile.id);
+      }
+
       await supabase.auth.updateUser({
         data: {
           full_name: nameInput,
@@ -208,6 +211,8 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
           university: universityInput,
           course: courseInput,
           level: levelInput,
+          department: departmentInput,
+          faculty: facultyInput,
           avatar_url: finalAvatarUrl
         }
       });
@@ -216,8 +221,9 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
       setShowSaveSuccess(true);
       setHasChanges(false);
       setTimeout(() => setShowSaveSuccess(false), 3000);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setErrorMsg(err.message || 'An error occurred while saving.');
     } finally {
       setIsSaving(false);
     }
@@ -225,12 +231,17 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
 
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const handleUpdatePassword = async () => {
-    if (!newPassword) return;
+    if (!currentPassword || !newPassword) {
+      setPasswordError("Current and new passwords are required");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setPasswordError("Passwords do not match");
       return;
@@ -238,9 +249,16 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
     setPasswordError('');
     setIsUpdatingPassword(true);
     try {
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: profile?.email || '',
+        password: currentPassword,
+      });
+      if (signInError) throw new Error("Incorrect current password.");
+
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       setPasswordSuccess("Password updated successfully");
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordSuccess(''), 3000);
@@ -356,7 +374,7 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
                     </div>
                     <div className="space-y-1.5 relative">
                       <label className="text-xs font-semibold text-slate-500 ml-1">Email Address</label>
-                      <input type="email" value={emailInput} onChange={(e) => { setEmailInput(e.target.value); setHasChanges(true); }} disabled className="w-full bg-[#020617] border border-slate-700 focus:border-indigo-500 text-slate-200 rounded-xl px-4 py-3 outline-none transition-colors" />
+                      <input type="email" value={emailInput} onChange={(e) => { setEmailInput(e.target.value); setHasChanges(true); }} className="w-full bg-[#020617] border border-slate-700 focus:border-indigo-500 text-slate-200 rounded-xl px-4 py-3 outline-none transition-colors" />
                     </div>
                     <div className="space-y-1.5 relative">
                       <label className="text-xs font-semibold text-slate-500 ml-1">Phone Number</label>
@@ -367,6 +385,18 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
                     <label className="text-xs font-semibold text-slate-500 ml-1">Bio</label>
                     <textarea value={bioInput} onChange={(e) => { setBioInput(e.target.value); setHasChanges(true); }} placeholder="Write a short bio..." className="w-full bg-[#020617] border border-slate-700 focus:border-indigo-500 text-slate-200 rounded-xl px-4 py-3 outline-none transition-colors resize-none" rows={3}></textarea>
                   </div>
+                  {profile?.role === 'Lecturer' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="space-y-1.5 relative">
+                      <label className="text-xs font-semibold text-slate-500 ml-1">Department</label>
+                      <input type="text" value={departmentInput} onChange={(e) => { setDepartmentInput(e.target.value); setHasChanges(true); }} placeholder="Department" className="w-full bg-[#020617] border border-slate-700 focus:border-indigo-500 text-slate-200 rounded-xl px-4 py-3 outline-none transition-colors" />
+                    </div>
+                    <div className="space-y-1.5 relative">
+                      <label className="text-xs font-semibold text-slate-500 ml-1">Faculty</label>
+                      <input type="text" value={facultyInput} onChange={(e) => { setFacultyInput(e.target.value); setHasChanges(true); }} placeholder="Faculty" className="w-full bg-[#020617] border border-slate-700 focus:border-indigo-500 text-slate-200 rounded-xl px-4 py-3 outline-none transition-colors" />
+                    </div>
+                  </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-800/50">
@@ -433,6 +463,15 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
               </div>
               
               <div className="space-y-6">
+                <div className="space-y-1.5 relative">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">Current Password</label>
+                  <div className="relative">
+                    <input type={showCurrentPassword ? "text" : "password"} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" className="w-full bg-[#020617] border border-slate-700 focus:border-rose-500 text-slate-200 rounded-xl px-4 py-3 outline-none transition-colors" />
+                    <button type="button" onClick={() => setShowCurrentPassword(!showCurrentPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                      {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5 relative">
                     <label className="text-xs font-semibold text-slate-500 ml-1">New Password</label>
@@ -622,13 +661,27 @@ export default function SettingsPage({ onLogout, onNavigate }: SettingsPageProps
                 </div>
                 
                 <div className="space-y-4">
-                  <div className="p-4 rounded-xl bg-[#020617]/50 border border-cyan-500/30 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">EN</div>
-                      <span className="font-semibold text-slate-200">English</span>
-                    </div>
-                    <Check size={16} className="text-cyan-400" />
-                  </div>
+                  {[
+                    { id: 'english', label: 'English', code: 'EN' },
+                    { id: 'french', label: 'French', code: 'FR' },
+                    { id: 'spanish', label: 'Spanish', code: 'ES' }
+                  ].map(l => (
+                    <button
+                      key={l.id}
+                      onClick={() => { setLanguage(l.id); setHasChanges(true); }}
+                      className={`w-full p-4 rounded-xl flex items-center justify-between transition-colors ${
+                        language === l.id 
+                          ? 'bg-[#020617]/50 border border-cyan-500/30' 
+                          : 'bg-[#020617]/30 border border-slate-800/50 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-300">{l.code}</div>
+                        <span className="font-semibold text-slate-200">{l.label}</span>
+                      </div>
+                      {language === l.id && <Check size={16} className="text-cyan-400" />}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>

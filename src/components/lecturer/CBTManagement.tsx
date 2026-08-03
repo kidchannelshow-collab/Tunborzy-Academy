@@ -18,9 +18,9 @@ export default function CBTManagement() {
   // Form State
   const [editingId, setEditingId] = useState('');
   const [title, setTitle] = useState('');
-  const [courseId, setCourseId] = useState('');
+  const [subject, setSubject] = useState('');
+  const [portal, setPortal] = useState('JAMB');
   const [duration, setDuration] = useState(60);
-  const [randomize, setRandomize] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -31,16 +31,15 @@ export default function CBTManagement() {
     if (!supabase || !profile) return;
     setLoading(true);
     try {
-      const [coursesRes, examsRes] = await Promise.all([
-        supabase.from('courses').select('id, title, course_code').eq('lecturer_id', profile.id),
-        supabase.from('cbt_exams').select('*, courses(course_code, title)').eq('lecturer_id', profile.id).order('created_at', { ascending: false })
-      ]);
+      let examsQuery = supabase.from('cbt_exams').select('*').order('created_at', { ascending: false });
       
-      setCourses(coursesRes.data || []);
-      if (coursesRes.data && coursesRes.data.length > 0 && !courseId) {
-        setCourseId(coursesRes.data[0].id);
+      if (profile.role !== 'Admin') {
+         examsQuery = examsQuery.eq('created_by', profile.id);
       }
-      setTests(examsRes.data || []);
+      
+      const { data } = await examsQuery;
+      
+      setTests(data || []);
     } catch (err) {
       console.error(err);
       // Suppress missing table errors by creating dummy state if table doesn't exist
@@ -55,11 +54,11 @@ export default function CBTManagement() {
     if (!supabase || !profile) return;
     
     const payload = {
-      lecturer_id: profile.id,
-      course_id: courseId,
+      created_by: profile.id,
       title,
+      subject,
+      portal,
       duration_minutes: duration,
-      randomize_questions: randomize,
       is_published: false
     };
 
@@ -68,9 +67,6 @@ export default function CBTManagement() {
         await supabase.from('cbt_exams').update(payload).eq('id', editingId);
       } else {
         await supabase.from('cbt_exams').insert(payload);
-        if (payload.course_id) {
-           await notificationService.notifyCourseStudents(payload.course_id, `New CBT Available: ${payload.title}`, `A new CBT exam has been scheduled.`, 'cbt', '/cbt');
-        }
       }
       setShowModal(false);
       resetForm();
@@ -83,16 +79,15 @@ export default function CBTManagement() {
   const resetForm = () => {
     setTitle('');
     setDuration(60);
-    setRandomize(false);
+    
     setEditingId('');
-    if (courses.length > 0) setCourseId(courses[0].id);
   };
 
   const openEdit = (exam: any) => {
     setTitle(exam.title);
-    setCourseId(exam.course_id);
+    
     setDuration(exam.duration_minutes || 60);
-    setRandomize(exam.randomize_questions || false);
+    
     setEditingId(exam.id);
     setShowModal(true);
   };
@@ -133,7 +128,7 @@ export default function CBTManagement() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-white mb-2">CBT Manager</h1>
-          <p className="text-slate-400">Create tests, manage questions, and review attempts.</p>
+          <p className="text-slate-400">Create tests and manage questions.</p>
         </div>
         <button 
           onClick={() => { resetForm(); setShowModal(true); }}
@@ -185,13 +180,14 @@ export default function CBTManagement() {
                   </td>
                   <td className="p-4">
                     <span className="bg-slate-800 text-slate-300 font-mono text-xs font-bold px-2 py-1 rounded border border-slate-700">
-                      {test.courses?.course_code || 'Course'}
+                      {test.subject || 'Subject'}
                     </span>
+                    <p className="text-xs text-slate-500 mt-1">{test.portal}</p>
                   </td>
                   <td className="p-4">
                     <div className="text-xs text-slate-400 space-y-1">
                       <p><span className="text-white font-bold">{test.duration_minutes}</span> mins</p>
-                      <p>{test.randomize_questions ? 'Randomized' : 'Fixed Order'}</p>
+                      <p><span className="text-white font-bold">{test.total_questions || 0}</span> Qs</p>
                     </div>
                   </td>
                   <td className="p-4">
@@ -246,9 +242,18 @@ export default function CBTManagement() {
                 </div>
                 
                 <div>
-                  <label className="text-sm font-bold text-slate-300">Target Course *</label>
-                  <select required value={courseId} onChange={e => setCourseId(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 mt-1 text-white focus:outline-none focus:border-amber-500">
-                    {courses.map(c => <option key={c.id} value={c.id}>{c.course_code ? `${c.course_code} - ` : ''}{c.title}</option>)}
+                  <label className="text-sm font-bold text-slate-300">Subject *</label>
+                  <input required type="text" value={subject} onChange={e => setSubject(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 mt-1 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. Physics" />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-bold text-slate-300">Portal *</label>
+                  <select required value={portal} onChange={e => setPortal(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 mt-1 text-white focus:outline-none focus:border-amber-500">
+                    <option value="JAMB">JAMB</option>
+                    <option value="WAEC">WAEC</option>
+                    <option value="NECO">NECO</option>
+                    <option value="Post-UTME">Post-UTME</option>
+                    <option value="General">General Assessment</option>
                   </select>
                 </div>
                 
@@ -257,19 +262,7 @@ export default function CBTManagement() {
                   <input required type="number" min="5" value={duration} onChange={e => setDuration(parseInt(e.target.value) || 60)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 mt-1 text-white focus:outline-none focus:border-amber-500" />
                 </div>
 
-                <div className="flex items-center gap-3 bg-[#020617] border border-slate-800 rounded-xl p-4">
-                  <input 
-                    type="checkbox" 
-                    id="randomize" 
-                    checked={randomize} 
-                    onChange={e => setRandomize(e.target.checked)} 
-                    className="w-5 h-5 rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900"
-                  />
-                  <div>
-                    <label htmlFor="randomize" className="text-sm font-bold text-white cursor-pointer block">Randomize Questions</label>
-                    <p className="text-xs text-slate-500">Shuffle questions and answers for each student.</p>
-                  </div>
-                </div>
+
                 
                 <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
                   <button type="button" onClick={() => setShowModal(false)} className="px-6 py-3 text-slate-400 hover:text-white font-bold rounded-xl transition-colors">Cancel</button>

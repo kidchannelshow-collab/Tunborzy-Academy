@@ -101,6 +101,8 @@ async function fetchProfileForUser(user: any, force = false) {
            university: getVal(data.university, meta.university),
            course: getVal(data.course, meta.course),
            level: getVal(data.level, meta.level),
+           department: getVal(data.department, meta.department),
+           faculty: getVal(data.faculty, meta.faculty),
            avatar_url: getVal(data.avatar_url, meta.avatar_url)
          };
          globalProfileCache = data;
@@ -182,7 +184,7 @@ export async function refreshProfile() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     await console.log("getUser resolved. user:", user);
-        await fetchProfileForUser(user);
+        await fetchProfileForUser(user, true);
   } catch (err) {
     console.warn("refreshProfile error:", err);
   }
