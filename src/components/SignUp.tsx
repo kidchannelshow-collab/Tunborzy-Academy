@@ -27,6 +27,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showAccessCode, setShowAccessCode] = useState(false);
   
   const [portal, setPortal] = useState('');
   const [accountType, setAccountType] = useState('');
@@ -653,12 +654,23 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
                             {accountType === 'Lecturer' ? <Shield className="h-5 w-5 text-slate-500" /> : <Key className="h-5 w-5 text-slate-500" />}
                           </div>
                           <input
-                            type="password"
+                            type={showAccessCode ? "text" : "password"}
                             value={accessCode}
                             onChange={(e) => setAccessCode(e.target.value)}
-                            className="block w-full pl-11 pr-4 py-3.5 border border-slate-700 rounded-xl leading-5 bg-[#020617]/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 sm:text-sm transition-all font-body font-normal"
+                            className="block w-full pl-11 pr-12 py-3.5 border border-slate-700 rounded-xl leading-5 bg-[#020617]/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 sm:text-sm transition-all font-body font-normal"
                             placeholder="••••••••"
                           />
+                          <button
+                            type="button"
+                            className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                            onClick={() => setShowAccessCode(!showAccessCode)}
+                          >
+                            {showAccessCode ? (
+                              <EyeOff className="h-5 w-5 text-slate-500 hover:text-slate-300 transition-colors" />
+                            ) : (
+                              <Eye className="h-5 w-5 text-slate-500 hover:text-slate-300 transition-colors" />
+                            )}
+                          </button>
                         </div>
                       </motion.div>
                     )}

@@ -112,3 +112,29 @@ CREATE POLICY "Users can delete their own notifications"
 
 -- Add realtime publication for notifications
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+
+-- Access Codes Table for Admins
+CREATE TABLE IF NOT EXISTS public.admin_access_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    access_code_sha256 TEXT NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT true,
+    used_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by UUID REFERENCES auth.users(id)
+);
+ALTER TABLE public.admin_access_codes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can view admin access codes" ON public.admin_access_codes FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('Admin', 'admin')));
+
+-- Access Codes Table for Lecturers
+CREATE TABLE IF NOT EXISTS public.lecturer_access_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    access_code_sha256 TEXT NOT NULL UNIQUE,
+    is_active BOOLEAN DEFAULT true,
+    used_at TIMESTAMPTZ,
+    expires_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by UUID REFERENCES auth.users(id)
+);
+ALTER TABLE public.lecturer_access_codes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can view lecturer access codes" ON public.lecturer_access_codes FOR SELECT USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('Admin', 'admin')));
