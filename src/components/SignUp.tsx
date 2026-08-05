@@ -94,28 +94,83 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
       const role = accountType || 'Student';
       const emailForAuth = cleanEmail;
 
-      // Admin and Lecturer accounts: validate access code locally since edge function is missing secrets
       if (role === 'Admin') {
-        const expectedCode = import.meta.env.VITE_ADMIN_ACCESS_CODE || 'ADMIN2024';
-        if (accessCode !== expectedCode) {
-           throw new Error('Invalid Admin Access Code.');
+        const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-provision-user', {
+          body: {
+            action: 'admin-signup',
+            name,
+            email,
+            password,
+            accessCode
+          }
+        });
+
+        if (fnError) {
+          throw new Error(fnError.message || 'Failed to create admin account.');
         }
+        
+        if (fnData?.error) {
+          throw new Error(fnData.error);
+        }
+
+        // Login after successful creation
+        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        if (loginError) throw loginError;
+
+        await refreshProfile();
+        setSuccessMsg('Registration successful. Redirecting...');
+        setTimeout(() => {
+          if (onSuccess && isMounted.current) onSuccess(role);
+        }, 100);
+        return;
       }
 
       if (role === 'Lecturer') {
-        const expectedCode = import.meta.env.VITE_LECTURER_ACCESS_CODE || 'LECTURER2024';
-        if (accessCode !== expectedCode) {
-           throw new Error('Invalid Lecturer Access Code.');
+        const { data: fnData, error: fnError } = await supabase.functions.invoke('admin-provision-user', {
+          body: {
+            action: 'lecturer-signup',
+            name,
+            email,
+            password,
+            accessCode
+          }
+        });
+
+        if (fnError) {
+          throw new Error(fnError.message || 'Failed to create lecturer account.');
         }
+
+        if (fnData?.error) {
+          throw new Error(fnData.error);
+        }
+
+        // Login after successful creation
+        const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+        if (loginError) throw loginError;
+
+        await refreshProfile();
+        setSuccessMsg('Registration successful. Redirecting...');
+        setTimeout(() => {
+          if (onSuccess && isMounted.current) onSuccess(role);
+        }, 100);
+        return;
       }
 
+      // ----------------------------------------------------
+      // Student Flow Below
+      // ----------------------------------------------------
       const { data: existingProfiles, error: selectError } = await supabase.from('profiles').select('email').eq('email', emailForAuth);
-      
       const isExistingUser = existingProfiles && existingProfiles.length > 0;
 
       if (isExistingUser) {
         const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-          email: emailForAuth,
+          email,
           password
         });
         
@@ -137,9 +192,8 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         return;
       }
 
-      
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: emailForAuth,
+        email,
         password,
         options: {
           data: {
@@ -158,7 +212,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
       if (authError) {
          if (authError.message.includes('already registered') || authError.message.includes('already exists')) {
             const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-              email: emailForAuth,
+              email,
               password
             });
             if (loginError) throw loginError;
@@ -178,14 +232,10 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
          throw authError;
       }
 
-      // 6. wait until authentication has completed
-      
-      
-      // We ensure they are logged in by attempting a sign-in if session is missing.
       let sessionToUse = authData.session;
       if (!sessionToUse && authData.user) {
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-            email: emailForAuth,
+            email,
             password
           });
           
@@ -198,7 +248,6 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         throw new Error('Failed to establish session after signup. Email confirmation might be required.');
       }
 
-      // 6. call auth.getUser() and verify auth.uid() exists
       const { data: { user: currentUser }, error: getUserError } = await supabase.auth.getUser();
       
       if (getUserError || !currentUser?.id) {
@@ -207,13 +256,10 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
 
       const userId = currentUser.id;
       
-      
-      
-      // 6. insert using id = auth.uid()
       const profilePayload = {
         id: userId,
         full_name: name,
-        email: emailForAuth,
+        email,
         role: role,
         portal: role === 'Student' ? portal : null,
         university: role === 'Student' ? university : null,
@@ -222,17 +268,11 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         created_at: new Date().toISOString()
       };
       
-      
-
       const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
 
       if (profileError) {
-        console.error('Supabase profile insert error:', profileError);
-        console.error('RLS error details:', profileError.details || profileError.message);
         throw new Error('Database Error: ' + profileError.message);
       }
-      
-      
       
       await refreshProfile();
       setSuccessMsg('Registration successful. Redirecting...');
@@ -248,11 +288,10 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         msg = 'Weak password. Please use a stronger password.';
       } else if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many requests')) {
         msg = 'Too many attempts detected. Please wait a few minutes before trying again.';
-      } else if (msg.toLowerCase().includes('invalid email')) {
-        msg = 'Invalid email format.';
       }
-      
+
       setErrorMsg(msg);
+    } finally {
       setIsLoading(false);
     }
   };
