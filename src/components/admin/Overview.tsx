@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Users, GraduationCap, Shield, UserCheck, UserX, ArrowUpRight, Activity } from 'lucide-react';
+import { Users, GraduationCap, Shield, UserCheck, UserX, ArrowUpRight, Activity, BookOpen } from 'lucide-react';
 import { useProfile } from '../../lib/useProfile';
 import { supabase } from '../../supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
