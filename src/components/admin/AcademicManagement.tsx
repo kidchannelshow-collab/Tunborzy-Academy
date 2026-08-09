@@ -249,7 +249,7 @@ export default function AcademicManagement() {
           <div className="text-center text-slate-400 py-10">Loading courses...</div>
         ) : groupedCourses.length === 0 ? (
           <div className="text-center text-slate-400 py-10 bg-[#0f172a]/50 rounded-3xl border border-slate-800">
-            No courses found. Add a course to get started.
+            No records found.
           </div>
         ) : groupedCourses.map((section, idx) => (
           <div key={idx} className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6">

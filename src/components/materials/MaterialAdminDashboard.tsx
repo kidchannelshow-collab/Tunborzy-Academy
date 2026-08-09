@@ -349,7 +349,7 @@ export default function MaterialAdminDashboard() {
               ) : filteredMaterials.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-2xl">
                   <BookOpen size={32} className="text-slate-600 mx-auto mb-3" />
-                  <p className="text-slate-400 font-medium text-sm">No materials found.</p>
+                  <p className="text-slate-400 font-medium text-sm">No records found.</p>
                 </div>
               ) : (
                 filteredMaterials.map((m) => (

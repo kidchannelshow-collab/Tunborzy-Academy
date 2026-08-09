@@ -613,7 +613,7 @@ export default function LecturerManagement() {
         {isLoading ? (
           <div className="py-12 text-center text-slate-500">Loading lecturers...</div>
         ) : paginatedLecturers.length === 0 ? (
-          <div className="py-12 text-center text-slate-500">No lecturers found matching your criteria.</div>
+          <div className="py-12 text-center text-slate-500">No records found.</div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {paginatedLecturers.map((lecturer) => (
