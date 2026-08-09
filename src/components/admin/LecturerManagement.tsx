@@ -144,11 +144,21 @@ export default function LecturerManagement() {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
-      if (fnError || fnData?.error) {
-        throw new Error(fnData?.error || fnError?.message || 'Failed to add lecturer.');
+      if (fnData?.error) {
+        throw new Error(fnData.error);
+      }
+      if (fnError) {
+        let actualError = fnError.message;
+        if (fnError.context && typeof fnError.context.json === 'function') {
+           try {
+             const errData = await fnError.context.json();
+             actualError = errData.error || actualError;
+           } catch(e) {}
+        }
+        throw new Error(actualError);
       }
 
-      showNotification("Lecturer added successfully", 'success');
+      showNotification("Lecturer created successfully.", 'success');
       setShowAddModal(false);
       setAddForm({ full_name: '', email: '', password: '', department: '', faculty: '', phone_number: '', assigned_courses: '', assigned_subjects: '' });
       fetchLecturers();
@@ -219,7 +229,7 @@ export default function LecturerManagement() {
   };
 
   // Filter & Search Logic
-  const filteredLecturers = useMemo(() => {
+    const filteredLecturers = useMemo(() => {
     let result = lecturers;
 
     if (searchQuery.trim()) {
@@ -229,22 +239,21 @@ export default function LecturerManagement() {
         (l.email || '').toLowerCase().includes(q) ||
         (l.department || '').toLowerCase().includes(q) ||
         (l.faculty || '').toLowerCase().includes(q) ||
-        (l.assigned_courses || []).some((c: string) => c.toLowerCase().includes(q))
+        (l.student_id || '').toLowerCase().includes(q) ||
+        (l.role || '').toLowerCase().includes(q) ||
+        (l.assigned_courses || []).some((c) => c.toLowerCase().includes(q))
       );
     }
 
     if (filterOption !== 'All') {
       if (filterOption === 'Active') {
-        result = result.filter(l => l.status !== 'Suspended' && l.status !== 'Disabled');
-      } else if (filterOption === 'Disabled') {
-        result = result.filter(l => l.status === 'Suspended' || l.status === 'Disabled');
+        result = result.filter(l => l.status === 'Active' || !l.status);
+      } else if (filterOption === 'Inactive') {
+        result = result.filter(l => l.status === 'Inactive' || l.status === 'Suspended' || l.status === 'Disabled');
       } else if (filterOption === 'Recently Added') {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        result = result.filter(l => new Date(l.created_at) >= thirtyDaysAgo);
-      } else {
-        // Assume it's a Department or Faculty filter
-        result = result.filter(l => l.department === filterOption || l.faculty === filterOption);
+        result = result.filter(l => new Date(l.created_at) > thirtyDaysAgo);
       }
     }
 

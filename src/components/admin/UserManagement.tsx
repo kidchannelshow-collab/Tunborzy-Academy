@@ -126,7 +126,7 @@ export default function UserManagement() {
   };
 
   // Filter & Search Logic
-  const filteredUsers = useMemo(() => {
+    const filteredUsers = useMemo(() => {
     let result = users;
 
     // Search
@@ -136,21 +136,18 @@ export default function UserManagement() {
         (u.full_name || '').toLowerCase().includes(q) ||
         (u.email || '').toLowerCase().includes(q) ||
         (u.student_id || '').toLowerCase().includes(q) ||
-        (u.university || '').toLowerCase().includes(q) ||
-        (u.course || '').toLowerCase().includes(q)
+        (u.role || '').toLowerCase().includes(q)
       );
     }
 
     // Filter by Option
     if (filterOption !== 'All') {
       if (['Student', 'Lecturer', 'Admin'].includes(filterOption)) {
-        result = result.filter(u => u.role === filterOption);
-      } else if (['UTME', 'Post-UTME', 'Undergraduate'].includes(filterOption)) {
-        result = result.filter(u => u.portal === filterOption);
+        result = result.filter(u => u.role === filterOption || (filterOption === 'Admin' && u.role === 'Super Admin'));
       } else if (filterOption === 'Active') {
-        result = result.filter(u => u.status !== 'Suspended' && u.status !== 'Disabled');
-      } else if (filterOption === 'Disabled') {
-        result = result.filter(u => u.status === 'Suspended' || u.status === 'Disabled');
+        result = result.filter(u => u.status === 'Active' || !u.status);
+      } else if (filterOption === 'Inactive') {
+        result = result.filter(u => u.status === 'Inactive' || u.status === 'Suspended' || u.status === 'Disabled');
       }
     }
 
@@ -354,7 +351,7 @@ export default function UserManagement() {
             />
           </div>
           <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2 md:pb-0">
-            {['All', 'Student', 'Lecturer', 'Admin', 'UTME', 'Post-UTME', 'Undergraduate', 'Active', 'Disabled'].map((opt) => (
+            {['All', 'Active', 'Inactive', 'Student', 'Lecturer', 'Admin'].map((opt) => (
               <button
                 key={opt}
                 onClick={() => setFilterOption(opt)}
@@ -380,8 +377,8 @@ export default function UserManagement() {
                 <th className="pb-3 px-2 font-semibold cursor-pointer hover:text-white" onClick={() => toggleSort('role')}>
                   <div className="flex items-center gap-1">Role <ArrowUpDown size={14}/></div>
                 </th>
-                <th className="pb-3 px-2 font-semibold cursor-pointer hover:text-white" onClick={() => toggleSort('portal')}>
-                  <div className="flex items-center gap-1">Portal/Course <ArrowUpDown size={14}/></div>
+                <th className="pb-3 px-2 font-semibold cursor-pointer hover:text-white" onClick={() => toggleSort('faculty')}>
+                  <div className="flex items-center gap-1">Faculty/Dept <ArrowUpDown size={14}/></div>
                 </th>
                 <th className="pb-3 px-2 font-semibold cursor-pointer hover:text-white" onClick={() => toggleSort('status')}>
                   <div className="flex items-center gap-1">Status <ArrowUpDown size={14}/></div>
@@ -394,9 +391,9 @@ export default function UserManagement() {
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={6} className="text-center py-8 text-slate-500">Loading users...</td></tr>
+                [1,2,3,4,5].map(i => <tr key={i}><td colSpan={6} className="py-4 px-2"><div className="h-10 bg-slate-800/50 rounded-xl animate-pulse w-full"></div></td></tr>)
               ) : paginatedUsers.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-8 text-slate-500">No users found.</td></tr>
+                <tr><td colSpan={6} className="text-center py-8 text-slate-500">No records found.</td></tr>
               ) : (
                 paginatedUsers.map((user) => (
                   <tr key={user.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors group">
@@ -419,8 +416,8 @@ export default function UserManagement() {
                       </span>
                     </td>
                     <td className="py-4 px-2">
-                      <div className="text-sm text-slate-300">{user.portal || '-'}</div>
-                      <div className="text-xs text-slate-500 truncate max-w-[150px]">{user.course || user.university || ''}</div>
+                      <div className="text-sm text-slate-300">{user.faculty || user.portal || '-'}</div>
+                      <div className="text-xs text-slate-500 truncate max-w-[150px]">{user.department || user.course || user.university || ''}</div>
                     </td>
                     <td className="py-4 px-2">
                       <span className={`px-2 py-1 rounded-md text-xs font-semibold ${

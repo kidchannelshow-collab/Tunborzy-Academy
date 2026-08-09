@@ -149,22 +149,7 @@ export default function PremiumActivationCodeManagement() {
           generatedBy: 'System Admin'
         };
         setCodeHistory([newRecord, ...codeHistory]);
-      } else if (error && error.code === '42P01') {
-         // Create the table since it doesn't exist
-         console.warn("activation_codes table is missing, but code generation is mocked.");
-         const newRecord: CodeRecord = {
-          id: Date.now().toString(),
-          studentName: selectedStudent.name,
-          studentId: selectedStudent.id,
-          code: newCode,
-          product,
-          generatedDate: new Date().toLocaleDateString(),
-          expiryDate: expiry ? new Date(expiry).toLocaleDateString() : 'Lifetime',
-          status: 'Unused',
-          generatedBy: 'System Admin'
-        };
-        setCodeHistory([newRecord, ...codeHistory]);
-      }
+      } else if (error) { console.error("Error generating code:", error.message); alert(error.message); }
     }
   };
 
