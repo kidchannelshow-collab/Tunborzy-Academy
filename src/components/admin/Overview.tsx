@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Users, GraduationCap, Shield, UserCheck, UserX, ArrowUpRight, Activity, BookOpen } from 'lucide-react';
+import { Users, GraduationCap, Shield, UserCheck, UserX } from 'lucide-react';
 import { useProfile } from '../../lib/useProfile';
 import { supabase } from '../../supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -11,15 +11,11 @@ export default function Overview() {
   
   const [stats, setStats] = useState({
     totalUsers: 0,
-    students: 0,
+    students: 0 as number | null,
     lecturers: 0,
     admins: 0,
     active: 0,
-    inactive: 0,
-    courses: 0,
-    subjects: 0,
-    faculties: 0,
-    departments: 0
+    inactive: 0
   });
   
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
@@ -30,47 +26,35 @@ export default function Overview() {
     if (!supabase) return;
     try {
       const [
-        { count: totalUsers },
-        { count: students },
-        { count: lecturers },
-        { count: admins },
-        { count: active },
-        { count: inactive },
-        { count: courses },
-        { count: subjects },
-        { count: faculties },
-        { count: departments }
+        usersRes,
+        studentsRes,
+        lecturersRes,
+        adminsRes,
+        activeRes,
+        inactiveRes
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Student'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Lecturer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['Admin', 'Super Admin']),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('status', 'Active'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).in('status', ['Inactive', 'Suspended', 'Disabled']),
-        supabase.from('courses').select('*', { count: 'exact', head: true }),
-        supabase.from('subjects').select('*', { count: 'exact', head: true }),
-        supabase.from('faculties').select('*', { count: 'exact', head: true }),
-        supabase.from('departments').select('*', { count: 'exact', head: true })
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).in('status', ['Inactive', 'Suspended', 'Disabled'])
       ]);
 
       setStats({
-        totalUsers: totalUsers || 0,
-        students: students || 0,
-        lecturers: lecturers || 0,
-        admins: admins || 0,
-        active: active || 0,
-        inactive: inactive || 0,
-        courses: courses || 0,
-        subjects: subjects || 0,
-        faculties: faculties || 0,
-        departments: departments || 0
+        totalUsers: usersRes.error ? 0 : (usersRes.count || 0),
+        students: studentsRes.error ? null : (studentsRes.count || 0),
+        lecturers: lecturersRes.error ? 0 : (lecturersRes.count || 0),
+        admins: adminsRes.error ? 0 : (adminsRes.count || 0),
+        active: activeRes.error ? 0 : (activeRes.count || 0),
+        inactive: inactiveRes.error ? 0 : (inactiveRes.count || 0)
       });
 
       // Recent users
       const { data: recent } = await supabase.from('profiles')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(5);
       
       if (recent) setRecentUsers(recent);
       
@@ -106,15 +90,18 @@ export default function Overview() {
   useEffect(() => {
     fetchData();
     
-    // Subscribe to realtime changes on profiles table
-    const channel = supabase.channel('public:overview_profiles')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-        fetchData();
-      })
-      .subscribe();
+    // Subscribe to realtime changes on all relevant tables
+    const tables = ['profiles'];
+    const channels = tables.map(table => 
+      supabase.channel(`public:overview_${table}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: table }, () => {
+          fetchData();
+        })
+        .subscribe()
+    );
       
     return () => {
-      supabase.removeChannel(channel);
+      channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, []);
 
@@ -134,15 +121,17 @@ export default function Overview() {
 
   const STATS = [
     { title: 'Total Users', value: stats.totalUsers.toString(), icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { title: 'Total Students', value: stats.students.toString(), icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { 
+      title: 'Total Students', 
+      value: stats.students === null ? 'Error' : stats.students.toString(), 
+      icon: Users, 
+      color: stats.students === null ? 'text-rose-400' : 'text-cyan-400', 
+      bg: stats.students === null ? 'bg-rose-500/10' : 'bg-cyan-500/10' 
+    },
     { title: 'Total Lecturers', value: stats.lecturers.toString(), icon: GraduationCap, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { title: 'Total Admins', value: stats.admins.toString(), icon: Shield, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { title: 'Active Users', value: stats.active.toString(), icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { title: 'Inactive Users', value: stats.inactive.toString(), icon: UserX, color: 'text-rose-400', bg: 'bg-rose-500/10' },
-    { title: 'Total Courses', value: stats.courses.toString(), icon: BookOpen, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-    { title: 'Total Subjects', value: stats.subjects.toString(), icon: BookOpen, color: 'text-fuchsia-400', bg: 'bg-fuchsia-500/10' },
-    { title: 'Total Faculties', value: stats.faculties.toString(), icon: Shield, color: 'text-orange-400', bg: 'bg-orange-500/10' },
-    { title: 'Total Departments', value: stats.departments.toString(), icon: Shield, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    { title: 'Inactive Users', value: stats.inactive.toString(), icon: UserX, color: 'text-rose-400', bg: 'bg-rose-500/10' }
   ];
 
   return (
