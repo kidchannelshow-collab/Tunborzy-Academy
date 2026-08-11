@@ -50,8 +50,8 @@ export default function UserManagement() {
     setIsLoading(true);
     const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
     if (error) {
-      console.error("Error fetching users:", error);
-      showNotification(error.message, 'error');
+      console.log("Error fetching users:", error);
+      showNotification(error.message || String(error), 'error');
     } else if (data) {
       setUsers(data);
     }
@@ -72,8 +72,8 @@ export default function UserManagement() {
         try {
           await action();
         } catch (err: any) {
-          console.error("Action error:", err);
-          showNotification(err.message, 'error');
+          console.log("Action error:", err);
+          showNotification(err.message || String(err), 'error');
         }
       }
     });
@@ -83,7 +83,9 @@ export default function UserManagement() {
   const handleResetPassword = (user: any) => {
     confirmAction('Reset Password', `Send password reset email to ${user.email}?`, false, async () => {
       const { error } = await supabase.auth.resetPasswordForEmail(user.email);
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message || String(error));
+      }
       showNotification(`Password reset email sent to ${user.email}`, 'success');
     });
   };
@@ -92,17 +94,76 @@ export default function UserManagement() {
     const newStatus = user.status === 'Suspended' || user.status === 'Disabled' ? 'Active' : 'Disabled';
     const actionText = newStatus === 'Active' ? 'Enable' : 'Disable';
     confirmAction(`${actionText} Account`, `Are you sure you want to ${actionText.toLowerCase()} ${user.full_name}?`, false, async () => {
-      const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', user.id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("admin-provision-user", {
+        body: {
+          action: "toggle-user-status",
+          userId: user.id,
+          status: newStatus
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        }
+      });
+      console.log(data);
+      console.log(error);
+      if (error) {
+        let actualError = error.message || String(error);
+        if (error.context && typeof error.context.json === 'function') {
+           try {
+             const errData = await error.context.json();
+             actualError = errData.error || actualError;
+           } catch(e) {}
+        }
+        throw new Error(actualError);
+      }
+      if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
       showNotification(`User account ${newStatus.toLowerCase()} successfully`, 'success');
+      
+      // Clear selected state if it matches the affected user
+      if (viewUser?.id === user.id) setViewUser({ ...viewUser, status: newStatus });
+      if (editUser?.id === user.id) setEditUser({ ...editUser, status: newStatus });
+      setConfirmConfig({ title: '', message: '', isIrreversible: false, onConfirm: async () => {} });
+      
+      // Do not call fetchUsers() here to avoid race condition with real-time subscription
+      // TODO: Refresh dashboard/admin statistics here when available
     });
   };
 
   const handleDeleteUser = (user: any) => {
     confirmAction('Delete User', `Are you sure you want to permanently delete ${user.full_name}?`, true, async () => {
-      const { error } = await supabase.from('profiles').delete().eq('id', user.id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("admin-provision-user", {
+        body: {
+          action: "delete-user",
+          userId: user.id
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        }
+      });
+      console.log(data);
+      console.log(error);
+      if (error) {
+        let actualError = error.message || String(error);
+        if (error.context && typeof error.context.json === 'function') {
+           try {
+             const errData = await error.context.json();
+             actualError = errData.error || actualError;
+           } catch(e) {}
+        }
+        throw new Error(actualError);
+      }
+      if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
       showNotification(`User deleted successfully`, 'success');
+      
+      // Clear selected state if it matches the deleted user
+      if (viewUser?.id === user.id) setViewUser(null);
+      if (editUser?.id === user.id) setEditUser(null);
+      setConfirmConfig({ title: '', message: '', isIrreversible: false, onConfirm: async () => {} });
+      
+      // Do not call fetchUsers() here to avoid race condition with real-time subscription
+      // TODO: Refresh dashboard/admin statistics here when available
     });
   };
 
@@ -117,8 +178,8 @@ export default function UserManagement() {
     
     setIsSaving(false);
     if (error) {
-      console.error("Error saving user:", error);
-      showNotification(error.message, 'error');
+      console.log("Error saving user:", error);
+      showNotification(error.message || String(error), 'error');
     } else {
       showNotification("User profile updated", 'success');
       setEditUser(null);

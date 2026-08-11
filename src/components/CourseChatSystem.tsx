@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { WifiOff } from 'lucide-react';
 
 import { useProfile } from '../lib/useProfile';
-import { Search, MoreVertical, Smile, Check, CheckCheck, FileText, ArrowLeft, Pin, MessageCircle, X, Reply, CornerUpLeft, Trash2, Bookmark, Copy, Forward, Download, ChevronDown, Plus } from 'lucide-react';
+import { Search, MoreVertical, Smile, Check, CheckCheck, FileText, ArrowLeft, Pin, MessageCircle, X, Reply, CornerUpLeft, Trash2, Bookmark, Forward, Download, ChevronDown } from 'lucide-react';
 import DashboardLayout from './dashboard/DashboardLayout';
 import { supabase } from '../supabaseClient';
 import VoiceMessage from './chat/VoiceMessage';

@@ -74,8 +74,8 @@ export default function AcademicManagement() {
     setIsSaving(true);
     try {
       const { create_chat, ...dbData } = courseForm;
-      let savedCourseCode = dbData.course_code;
-      let savedCourseTitle = dbData.title;
+      const savedCourseCode = dbData.course_code;
+      const savedCourseTitle = dbData.title;
 
       if (editingCourse) {
         await supabase.from('courses').update(dbData).eq('id', editingCourse.id);

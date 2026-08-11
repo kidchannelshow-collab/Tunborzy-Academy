@@ -6,12 +6,15 @@ import { supabase } from '../../supabaseClient';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 export default function Overview() {
+  console.log("=== REAL DASHBOARD COMPONENT LOADED ===");
+  console.log("Current file:", import.meta.url);
+
   const { profile } = useProfile();
   const displayName = profile?.full_name || "";
   
   const [stats, setStats] = useState({
     totalUsers: 0,
-    students: 0 as number | null,
+    students: 0,
     lecturers: 0,
     admins: 0,
     active: 0,
@@ -36,14 +39,14 @@ export default function Overview() {
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Student'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Lecturer'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['Admin', 'Super Admin']),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'Admin'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('status', 'Active'),
-        supabase.from('profiles').select('*', { count: 'exact', head: true }).in('status', ['Inactive', 'Suspended', 'Disabled'])
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('status', 'Inactive')
       ]);
 
       setStats({
         totalUsers: usersRes.error ? 0 : (usersRes.count || 0),
-        students: studentsRes.error ? null : (studentsRes.count || 0),
+        students: studentsRes.error ? 0 : (studentsRes.count || 0),
         lecturers: lecturersRes.error ? 0 : (lecturersRes.count || 0),
         admins: adminsRes.error ? 0 : (adminsRes.count || 0),
         active: activeRes.error ? 0 : (activeRes.count || 0),
@@ -88,6 +91,19 @@ export default function Overview() {
   };
 
   useEffect(() => {
+    console.log("Dashboard component loaded");
+    console.log("Supabase URL:", (supabase as any).supabaseUrl);
+
+    (async () => {
+      const { data, count, error } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact" });
+      
+      console.log("Profiles:", data);
+      console.log("Count:", count);
+      console.log("Error:", error);
+    })();
+
     fetchData();
     
     // Subscribe to realtime changes on all relevant tables
@@ -112,6 +128,7 @@ export default function Overview() {
     if (hour >= 17 && hour < 21) return 'Good Evening';
     return 'Good Night';
   };
+
   const getEmoji = () => {
     if (hour >= 5 && hour < 12) return '☀️';
     if (hour >= 12 && hour < 17) return '🌤️';
@@ -121,13 +138,7 @@ export default function Overview() {
 
   const STATS = [
     { title: 'Total Users', value: stats.totalUsers.toString(), icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-    { 
-      title: 'Total Students', 
-      value: stats.students === null ? 'Error' : stats.students.toString(), 
-      icon: Users, 
-      color: stats.students === null ? 'text-rose-400' : 'text-cyan-400', 
-      bg: stats.students === null ? 'bg-rose-500/10' : 'bg-cyan-500/10' 
-    },
+    { title: 'Total Students', value: stats.students.toString(), icon: Users, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
     { title: 'Total Lecturers', value: stats.lecturers.toString(), icon: GraduationCap, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { title: 'Total Admins', value: stats.admins.toString(), icon: Shield, color: 'text-amber-400', bg: 'bg-amber-500/10' },
     { title: 'Active Users', value: stats.active.toString(), icon: UserCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },

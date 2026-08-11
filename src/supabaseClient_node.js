@@ -6,7 +6,7 @@ const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseKey) {
   // Fail loudly in development if env vars are missing, without ever
   // printing the key itself to the console.
-  // eslint-disable-next-line no-console
+   
   console.error(
     "Supabase environment variables are not configured. Check your .env file."
   );

@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, Users, Eye, Search, FileText, Filter, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, Eye, Search, Filter } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useProfile } from '../../lib/useProfile';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend, PieChart, Pie, Cell } from 'recharts';
 
 export default function StudentInsights() {
   const { profile } = useProfile();

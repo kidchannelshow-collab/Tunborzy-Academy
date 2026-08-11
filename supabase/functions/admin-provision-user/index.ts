@@ -195,7 +195,7 @@ Deno.serve(async (req: Request) => {
         .eq("id", callerData.user.id)
         .single();
 
-      if (callerProfileErr || (callerProfile?.role !== "Admin" && callerProfile?.role !== "admin")) {
+      if (callerProfileErr || (callerProfile?.role !== "Admin" && callerProfile?.role !== "admin" && callerProfile?.role !== "Super Admin")) {
         return json({ error: "Only Admins can add lecturers." }, 403);
       }
 
@@ -239,6 +239,94 @@ Deno.serve(async (req: Request) => {
       return json({ success: true, userId });
     }
 
+    if (action === "toggle-user-status") {
+      console.log("ACTION:", action);
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const token = authHeader.replace("Bearer ", "");
+      if (!token) return json({ error: "Missing authorization." }, 401);
+      
+      const { data: callerData, error: callerErr } = await adminClient.auth.getUser(token);
+      if (callerErr || !callerData?.user) return json({ error: "Invalid session." }, 401);
+      
+      console.log("CALLER:", callerData.user.id);
+      
+      const { data: callerProfile, error: callerProfileErr } = await adminClient.from("profiles")
+        .select("role")
+        .eq("id", callerData.user.id)
+        .single();
+        
+      console.log("ROLE:", callerProfile?.role);
+        
+      if (callerProfileErr || (callerProfile?.role !== "Admin" && callerProfile?.role !== "admin" && callerProfile?.role !== "Super Admin")) {
+        return json({ error: "Only Admins can toggle user status." }, 403);
+      }
+
+      const { userId, status } = body;
+      if (!userId || !status) {
+        return json({ error: "Missing userId or status." }, 400);
+      }
+      
+      console.log("TARGET USER:", userId);
+      console.log("NEW STATUS:", status);
+
+      const { error: updateError } = await adminClient
+        .from("profiles")
+        .update({ status })
+        .eq("id", userId);
+
+      if (updateError) {
+        console.error("UPDATE ERROR:", updateError);
+        throw updateError;
+      }
+      return json({ success: true });
+    }
+
+    if (action === "delete-user") {
+      console.log("ACTION:", action);
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const token = authHeader.replace("Bearer ", "");
+      if (!token) return json({ error: "Missing authorization." }, 401);
+      
+      const { data: callerData, error: callerErr } = await adminClient.auth.getUser(token);
+      if (callerErr || !callerData?.user) return json({ error: "Invalid session." }, 401);
+      
+      console.log("CALLER:", callerData.user.id);
+      
+      const { data: callerProfile, error: callerProfileErr } = await adminClient.from("profiles")
+        .select("role")
+        .eq("id", callerData.user.id)
+        .single();
+        
+      console.log("ROLE:", callerProfile?.role);
+        
+      if (callerProfileErr || (callerProfile?.role !== "Admin" && callerProfile?.role !== "admin" && callerProfile?.role !== "Super Admin")) {
+        return json({ error: "Only Admins can delete users." }, 403);
+      }
+
+      const { userId } = body;
+      if (!userId) {
+        return json({ error: "Missing userId." }, 400);
+      }
+      
+      console.log("TARGET USER:", userId);
+
+      console.log("Deleting profile...");
+      const { error: profileDeleteErr } = await adminClient.from("profiles").delete().eq("id", userId);
+      if (profileDeleteErr) {
+        console.error("PROFILE DELETE ERROR:", profileDeleteErr);
+        throw profileDeleteErr;
+      }
+
+      console.log("Deleting auth user...");
+      const { error: authDeleteErr } = await adminClient.auth.admin.deleteUser(userId);
+      if (authDeleteErr) {
+        console.error("AUTH DELETE ERROR:", authDeleteErr);
+        throw authDeleteErr;
+      }
+
+      return json({ success: true });
+    }
+
     if (action === "delete-own-account") {
       const authHeader = req.headers.get("Authorization") ?? "";
       const token = authHeader.replace("Bearer ", "");
@@ -262,6 +350,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Unknown action." }, 400);
 
   } catch (error: any) {
+    console.error("EDGE FUNCTION ERROR:", error);
     return new Response(
       JSON.stringify({
         success: false,

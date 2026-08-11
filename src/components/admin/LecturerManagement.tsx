@@ -56,8 +56,8 @@ export default function LecturerManagement() {
       .order('created_at', { ascending: false });
       
     if (error) {
-      console.error("Error fetching lecturers:", error);
-      showNotification(error.message, 'error');
+      console.log("Error fetching lecturers:", error);
+      showNotification(error.message || String(error), 'error');
     } else if (data) {
       setLecturers(data);
     }
@@ -78,8 +78,8 @@ export default function LecturerManagement() {
         try {
           await action();
         } catch (err: any) {
-          console.error("Action error:", err);
-          showNotification(err.message, 'error');
+          console.log("Action error:", err);
+          showNotification(err.message || String(err), 'error');
         }
       }
     });
@@ -163,8 +163,8 @@ export default function LecturerManagement() {
       setAddForm({ full_name: '', email: '', password: '', department: '', faculty: '', phone_number: '', assigned_courses: '', assigned_subjects: '' });
       fetchLecturers();
     } catch (err: any) {
-      console.error("Error adding lecturer:", err);
-      showNotification(err.message, 'error');
+      console.log("Error adding lecturer:", err);
+      showNotification(err.message || String(err), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -192,8 +192,8 @@ export default function LecturerManagement() {
       setMaterialForm({ type: 'PDF', url: '', title: '' });
       fetchLecturers();
     } catch (err: any) {
-      console.error("Error assigning material:", err);
-      showNotification(err.message, 'error');
+      console.log("Error assigning material:", err);
+      showNotification(err.message || String(err), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -221,8 +221,8 @@ export default function LecturerManagement() {
       setEditLecturer(null);
       fetchLecturers();
     } catch (err: any) {
-      console.error("Error saving lecturer:", err);
-      showNotification(err.message, 'error');
+      console.log("Error saving lecturer:", err);
+      showNotification(err.message || String(err), 'error');
     } finally {
       setIsSaving(false);
     }

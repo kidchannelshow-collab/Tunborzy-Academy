@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
-  BarChart2, Clock, Target, TrendingUp, TrendingDown,
-  Award, FileText, MessageCircle, AlertTriangle, Zap, BrainCircuit, Activity, CheckSquare, XCircle, HelpCircle
+  BarChart2, Activity
 } from 'lucide-react';
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell, LineChart, Line
-} from 'recharts';
+
+
 import DashboardLayout from './dashboard/DashboardLayout';
 import { supabase } from '../supabaseClient';
 import { useProfile } from '../lib/useProfile';

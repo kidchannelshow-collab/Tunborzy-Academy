@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, FileText, Book, Library, Users, Calendar, Clock } from 'lucide-react';
+import { BookOpen, FileText, Library, Users, Calendar } from 'lucide-react';
 import { useProfile } from '../../lib/useProfile';
 import { supabase } from '../../supabaseClient';
 

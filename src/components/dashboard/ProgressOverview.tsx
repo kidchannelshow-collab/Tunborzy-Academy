@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, Clock, Target, Flame, TrendingUp } from 'lucide-react';
+import { BookOpen, Clock, Target } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useProfile } from '../../lib/useProfile';
 

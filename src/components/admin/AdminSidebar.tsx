@@ -1,7 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  LayoutDashboard, Users, UserCog, BookOpen, Database, 
-  Key, UserCheck, Monitor, Bot, LineChart, Settings, 
+  LayoutDashboard, Users, UserCog, BookOpen, Database, UserCheck, Monitor, Bot, LineChart, Settings, 
   History, LogOut, X, ChevronRight, Fingerprint
 } from 'lucide-react';
 

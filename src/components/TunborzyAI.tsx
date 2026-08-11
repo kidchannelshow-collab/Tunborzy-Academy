@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Bot, Plus, MessageSquare, History, Bookmark, Trash2, Settings,
+  Bot, Plus, MessageSquare, History, Trash2, Settings,
   Image as ImageIcon, FileText, Camera, Send, MoreVertical,
   ThumbsUp, ThumbsDown, Copy, RefreshCw, X, ArrowLeft,
   Brain, Calculator, FlaskConical, Dna, BookOpen, FileQuestion, AlignLeft, Calendar, 

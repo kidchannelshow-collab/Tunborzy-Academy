@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FileText, Plus, Edit2, Trash2, Eye, EyeOff, FileSpreadsheet, Search } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
-import { notificationService } from '../../lib/notificationService';
 import { useProfile } from '../../lib/useProfile';
 import CBTQuestionManager from './CBTQuestionManager';
 

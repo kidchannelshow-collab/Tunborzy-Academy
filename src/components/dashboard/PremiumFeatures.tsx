@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Crown, Library, RefreshCcw, Bot, FileText, PenTool, CheckCircle2, Calendar, Clock, Key } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Lock, Crown, Library, RefreshCcw, Bot, FileText, PenTool, CheckCircle2 } from 'lucide-react';
+import { useState } from 'react';
 import { useProfile } from '../../lib/useProfile';
 
 interface PremiumFeaturesProps { onNavigate?: (view: string) => void; }

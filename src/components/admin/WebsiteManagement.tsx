@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Monitor, Image as ImageIcon, Type, Layout, Link as LinkIcon, Edit2, Trash2 } from 'lucide-react';
+import { Monitor, Image as ImageIcon, Type, Layout, Link as LinkIcon } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
 
 export default function WebsiteManagement() {
