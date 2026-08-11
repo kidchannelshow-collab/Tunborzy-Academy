@@ -14,7 +14,7 @@ interface HelpSupportPageProps {
 }
 
 const FAQS = [
-  { q: "How do I activate Premium?", a: "To activate Premium, navigate to the Settings page and select 'Premium Activation'. Enter your valid premium code and click activate." },
+  { q: "How do I upgrade to Premium?", a: "To upgrade to Premium, navigate to the Premium Features section and complete the payment process securely via Flutterwave." },
   { q: "How do I reset my password?", a: "Go to the Settings page, navigate to the Security section, and you can change your password. If you forgot your password while logged out, use the 'Forgot Password' link on the login screen." },
   { q: "How do I access CBT Practice?", a: "Click on 'CBT Practice' in the sidebar. Select your exam type (JAMB, Post-UTME), subject, and start your timed practice session." },
   
@@ -26,7 +26,7 @@ const FAQS = [
 
 const TICKETS = [
   { id: "TKT-001", subject: "Cannot access Biology Module 3", date: "Oct 12, 2025", status: "Resolved" },
-  { id: "TKT-002", subject: "Premium code invalid", date: "Oct 15, 2025", status: "Closed" },
+  { id: "TKT-002", subject: "Payment verification failed", date: "Oct 15, 2025", status: "Closed" },
   { id: "TKT-003", subject: "Feature Request: Dark mode for PDF reader", date: "Oct 20, 2025", status: "In Progress" },
   { id: "TKT-004", subject: "App crashing on chat load", date: "Today", status: "Open" }
 ];
@@ -38,7 +38,7 @@ const SYSTEM_STATUS = [
   { service: "AI Assistant", status: "Operational", icon: Brain },
   { service: "Chat System", status: "Maintenance", icon: MessageCircle },
   { service: "Announcements", status: "Operational", icon: Bell },
-  { service: "Premium Activation", status: "Operational", icon: CreditCard }
+  { service: "Payment Gateway", status: "Operational", icon: CreditCard }
 ];
 
 export default function HelpSupportPage({ onLogout, onNavigate }: HelpSupportPageProps) {

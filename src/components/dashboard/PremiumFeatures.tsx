@@ -89,7 +89,15 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => { /* Premium system is temporarily disabled for testing and will be activated later; setShowModal(true) */ }}
+                  onClick={() => { 
+                    // TODO: Implement Flutterwave payment gateway here
+                    // After successful payment, update profile with:
+                    // premium_status: 'Premium',
+                    // payment_reference: response.tx_ref,
+                    // payment_date: new Date().toISOString(),
+                    // payment_provider: 'Flutterwave'
+                    alert('Flutterwave payment integration pending.');
+                  }}
                   className="w-full md:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-600 text-slate-950 font-action font-bold shadow-[0_0_20px_rgba(245,158,11,0.2)] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-all flex items-center justify-center gap-2"
                 >
                   Activate Premium
@@ -166,7 +174,7 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
                 </div>
                 <h3 className="text-2xl font-display font-bold text-white mb-2 relative z-10 tracking-tight">Premium Feature</h3>
                 <p className="text-sm font-body text-slate-300 relative z-10 leading-relaxed max-w-[280px] mx-auto">
-                  This feature is available to Premium members. Please contact the platform administrator to activate your Premium access.
+                  This feature is available to Premium members. Upgrade to Premium via Flutterwave to unlock full access.
                 </p>
               </div>
               
@@ -180,10 +188,13 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
                     Close
                   </button>
                   <button 
-                    disabled
-                    className="flex-1 px-4 py-3.5 rounded-xl bg-slate-800 text-slate-500 font-action font-bold cursor-not-allowed flex items-center justify-center gap-2"
+                    onClick={() => {
+                      // TODO: Implement Flutterwave payment modal here
+                      alert('Flutterwave payment integration pending.');
+                    }}
+                    className="flex-1 px-4 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-action font-bold transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
                   >
-                    Contact Administrator
+                    Upgrade Now
                   </button>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  LayoutDashboard, Users, UserCog, BookOpen, Database, UserCheck, Monitor, Bot, LineChart, Settings, 
-  History, LogOut, X, ChevronRight, Fingerprint
+  LayoutDashboard, Users, UserCog, BookOpen, Database, Bot, LineChart, Settings, 
+  History, LogOut, X, ChevronRight
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -19,9 +19,6 @@ export default function AdminSidebar({ isOpen, setIsOpen, onLogout, currentView,
     { icon: UserCog, label: 'Lecturer Management', id: 'lecturers' },
     { icon: BookOpen, label: 'Academic Management', id: 'academic' },
     { icon: Database, label: 'Content Management', id: 'content' },
-    { icon: Fingerprint, label: 'Activation Codes', id: 'premium-activation' },
-    { icon: UserCheck, label: 'Student Activation', id: 'activation' },
-    { icon: Monitor, label: 'Website Management', id: 'website' },
     { icon: Bot, label: 'AI Management', id: 'ai' },
     { icon: LineChart, label: 'Analytics', id: 'analytics' },
     { icon: Settings, label: 'System Settings', id: 'settings' },

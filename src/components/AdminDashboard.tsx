@@ -5,9 +5,6 @@ import UserManagement from './admin/UserManagement';
 import LecturerManagement from './admin/LecturerManagement';
 import AcademicManagement from './admin/AcademicManagement';
 import ContentManagement from './admin/ContentManagement';
-import PremiumActivationCodeManagement from './admin/PremiumActivationCodeManagement';
-import StudentActivation from './admin/StudentActivation';
-import WebsiteManagement from './admin/WebsiteManagement';
 import AIManagement from './admin/AIManagement';
 import Analytics from './admin/Analytics';
 import SystemSettings from './admin/SystemSettings';
@@ -18,7 +15,7 @@ interface AdminDashboardProps {
   onNavigate?: (view: string) => void;
 }
 
-export default function AdminDashboard({ onLogout, onNavigate }: AdminDashboardProps) {
+export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
   const [currentView, setCurrentView] = useState('overview');
 
   const renderView = () => {
@@ -33,12 +30,6 @@ export default function AdminDashboard({ onLogout, onNavigate }: AdminDashboardP
         return <AcademicManagement />;
       case 'content':
         return <ContentManagement />;
-      case 'premium-activation':
-        return <PremiumActivationCodeManagement />;
-      case 'activation':
-        return <StudentActivation />;
-      case 'website':
-        return <WebsiteManagement />;
       case 'ai':
         return <AIManagement />;
       case 'analytics':
