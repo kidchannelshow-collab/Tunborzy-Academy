@@ -108,7 +108,7 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
               whileHover={!isPremium ? { y: -5 } : { y: -5, boxShadow: "0 10px 30px -10px rgba(0,0,0,0.5)" }}
-              onClick={() => { onNavigate && onNavigate(feature.id); }}
+              onClick={() => { if (onNavigate) onNavigate(feature.id); }}
               className={`relative overflow-hidden rounded-2xl bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 p-6 shadow-lg ${!isPremium ? 'cursor-pointer group' : ''}`}
             >
               {!isPremium && (

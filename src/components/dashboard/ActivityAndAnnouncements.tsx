@@ -74,8 +74,8 @@ export default function ActivityAndAnnouncements({ onNavigate }: ActivityAndAnno
               key={index}
               whileHover={{ x: 4 }}
               onClick={() => {
-                if (activity.type === 'chat') onNavigate && onNavigate('chats');
-                if (activity.type === 'cbt') onNavigate && onNavigate('cbt');
+                if (activity.type === 'chat') if (onNavigate) onNavigate('chats');
+                if (activity.type === 'cbt') if (onNavigate) onNavigate('cbt');
               }}
               className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-800/50 transition-colors cursor-pointer group"
             >

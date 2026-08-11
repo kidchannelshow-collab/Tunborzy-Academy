@@ -145,19 +145,10 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "lecturer-signup") {
-      const { name, email, password, accessCode } = body;
-      const LECTURER_ACCESS_CODE = Deno.env.get("LECTURER_ACCESS_CODE");
+      const { name, email, password } = body;
       
-      if (!LECTURER_ACCESS_CODE) {
-        return json({ error: "Lecturer sign-up is not configured on the server." }, 500);
-      }
-
-      if (!name || !email || !password || !accessCode) {
+      if (!name || !email || !password) {
         return json({ error: "Missing required fields." }, 400);
-      }
-
-      if (accessCode !== LECTURER_ACCESS_CODE) {
-        return json({ error: "Invalid Lecturer Access Code." }, 401);
       }
 
       const cleanEmail = String(email).trim().toLowerCase();

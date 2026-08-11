@@ -24,7 +24,7 @@ export default function FloatingNotificationButton({ onClick }: FloatingNotifica
           setPosition(parsed);
           posRef.current = parsed;
         }
-      } catch (e) {}
+      } catch(e) { /* ignore */ }
     } else {
       // Set to default position
       setDefaultPosition();
@@ -54,7 +54,8 @@ export default function FloatingNotificationButton({ onClick }: FloatingNotifica
        return;
     }
     
-    let { x, y } = posRef.current;
+    let x = posRef.current.x;
+    let y = posRef.current.y;
     const maxX = window.innerWidth - 70;
     const maxY = window.innerHeight - 70;
     
@@ -115,7 +116,8 @@ export default function FloatingNotificationButton({ onClick }: FloatingNotifica
     
     if (isDragging) {
       // Snap to nearest edge
-      let { x, y } = posRef.current;
+      let x = posRef.current.x;
+      let y = posRef.current.y;
       const buttonWidth = buttonRef.current?.offsetWidth || 64;
       
       // Snap horizontally

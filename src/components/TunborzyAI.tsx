@@ -52,7 +52,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
   const [messages, setMessages] = useState<Message[]>(() => {
     const saved = localStorage.getItem('tunborzy_ai_messages');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try { return JSON.parse(saved); } catch(e) { /* ignore */ }
     }
     return [];
   });
@@ -158,7 +158,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
                         m.id === aiMsgId ? { ...m, content: aiContent } : m
                       ));
                     }
-                  } catch (e) {
+                  } catch (e) { /* ignore */
                   }
                 }
               }
@@ -262,7 +262,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
                       m.id === aiMsgId ? { ...m, content: aiContent } : m
                     ));
                   }
-                } catch (e) {
+                } catch (e) { /* ignore */
                   // ignore parse error for incomplete chunks if any
                 }
               }

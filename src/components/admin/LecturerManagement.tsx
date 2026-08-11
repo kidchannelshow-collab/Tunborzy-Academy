@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserCog, Plus, Search, Edit2, Trash2, BookOpen, Eye, X, Mail, Phone, Book, GraduationCap, Clock, FileText, ChevronLeft, ChevronRight, UserCheck, UserX, Key } from 'lucide-react';
+import { UserCog, Plus, Search, Edit2, Trash2, BookOpen, Eye, X, Mail, Phone, Book, GraduationCap, Clock, FileText, ChevronLeft, ChevronRight, UserCheck, UserX } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
 import { supabase } from '../../supabaseClient';
 
@@ -86,33 +86,83 @@ export default function LecturerManagement() {
     setIsConfirmModalOpen(true);
   };
 
-  const handleResetPassword = (lecturer: any) => {
-    confirmAction('Reset Password', `Send password reset email to ${lecturer.email}?`, false, async () => {
-      if (!supabase) throw new Error('Supabase client is not initialized');
-      const { error } = await supabase.auth.resetPasswordForEmail(lecturer.email);
-      if (error) throw error;
-      showNotification(`Password reset email sent to ${lecturer.email}`, 'success');
-    });
-  };
-
   const handleToggleStatus = (lecturer: any, newStatus: string) => {
     const actionText = newStatus === 'Active' ? (lecturer.status === 'Suspended' ? 'Reactivate' : 'Enable') : (newStatus === 'Suspended' ? 'Suspend' : 'Disable');
     confirmAction(`${actionText} Lecturer`, `Are you sure you want to ${actionText.toLowerCase()} ${lecturer.full_name}?`, false, async () => {
-      if (!supabase) throw new Error('Supabase client is not initialized');
-      const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', lecturer.id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("admin-provision-user", {
+        body: {
+          action: "toggle-user-status",
+          userId: lecturer.id,
+          status: newStatus
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        }
+      });
+      console.log(data);
+      console.error(error);
+      
+      if (error) {
+        let actualError = error.message || String(error);
+        if (error.context && typeof error.context.json === 'function') {
+           try {
+             const errData = await error.context.json();
+             actualError = errData.error || actualError;
+           } catch(e) { /* ignore */ }
+        }
+        throw new Error(actualError);
+      }
+      
+      if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+      
       showNotification(`Lecturer account ${newStatus.toLowerCase()} successfully`, 'success');
-      fetchLecturers();
+      
+      // Clear selected state if it matches the affected user
+      if (viewLecturer?.id === lecturer.id) setViewLecturer({ ...viewLecturer, status: newStatus });
+      if (editLecturer?.id === lecturer.id) setEditLecturer({ ...editLecturer, status: newStatus });
+      setConfirmConfig({ title: '', message: '', isIrreversible: false, onConfirm: async () => {} });
+      
+      // Do not call fetchLecturers() here to avoid race condition with real-time subscription
     });
   };
 
   const handleDeleteLecturer = (lecturer: any) => {
     confirmAction('Delete Lecturer', `Are you sure you want to permanently delete ${lecturer.full_name}?`, true, async () => {
-      if (!supabase) throw new Error('Supabase client is not initialized');
-      const { error } = await supabase.from('profiles').delete().eq('id', lecturer.id);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("admin-provision-user", {
+        body: {
+          action: "delete-user",
+          userId: lecturer.id
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        }
+      });
+      console.log(data);
+      console.error(error);
+      
+      if (error) {
+        let actualError = error.message || String(error);
+        if (error.context && typeof error.context.json === 'function') {
+           try {
+             const errData = await error.context.json();
+             actualError = errData.error || actualError;
+           } catch(e) { /* ignore */ }
+        }
+        throw new Error(actualError);
+      }
+      
+      if (data?.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+      
       showNotification(`Lecturer deleted successfully`, 'success');
-      fetchLecturers();
+      
+      // Clear selected state if it matches the deleted user
+      if (viewLecturer?.id === lecturer.id) setViewLecturer(null);
+      if (editLecturer?.id === lecturer.id) setEditLecturer(null);
+      setConfirmConfig({ title: '', message: '', isIrreversible: false, onConfirm: async () => {} });
+      
+      // Do not call fetchLecturers() here to avoid race condition with real-time subscription
     });
   };
 
@@ -153,7 +203,7 @@ export default function LecturerManagement() {
            try {
              const errData = await fnError.context.json();
              actualError = errData.error || actualError;
-           } catch(e) {}
+           } catch(e) { /* ignore */ }
         }
         throw new Error(actualError);
       }
@@ -637,7 +687,6 @@ export default function LecturerManagement() {
                     <div className="flex gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                       <button className="p-2 text-slate-400 hover:text-white transition-colors hover:bg-slate-800 rounded-lg" title="View Profile" onClick={() => setViewLecturer(lecturer)}><Eye size={16}/></button>
                       <button className="p-2 text-slate-400 hover:text-blue-400 transition-colors hover:bg-slate-800 rounded-lg" title="Edit" onClick={() => setEditLecturer({...lecturer})}><Edit2 size={16}/></button>
-                      <button className="p-2 text-slate-400 hover:text-amber-400 transition-colors hover:bg-slate-800 rounded-lg" title="Reset Password" onClick={() => handleResetPassword(lecturer)}><Key size={16}/></button>
                       {lecturer.status === 'Suspended' || lecturer.status === 'Disabled' ? (
                         <button className="p-2 text-slate-400 hover:text-emerald-400 transition-colors hover:bg-slate-800 rounded-lg" title="Enable Account" onClick={() => handleToggleStatus(lecturer, 'Active')}><UserCheck size={16}/></button>
                       ) : (

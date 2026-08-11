@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Users, Search, Edit2, Trash2, Shield, UserX, UserCheck, Key, Eye, X, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
+import { Users, Search, Edit2, Trash2, Shield, UserX, UserCheck, Eye, X, ChevronLeft, ChevronRight, ArrowUpDown } from 'lucide-react';
 import ConfirmationModal from './ConfirmationModal';
 import { supabase } from '../../supabaseClient';
 
@@ -80,16 +80,6 @@ export default function UserManagement() {
     setIsConfirmModalOpen(true);
   };
 
-  const handleResetPassword = (user: any) => {
-    confirmAction('Reset Password', `Send password reset email to ${user.email}?`, false, async () => {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email);
-      if (error) {
-        throw new Error(error.message || String(error));
-      }
-      showNotification(`Password reset email sent to ${user.email}`, 'success');
-    });
-  };
-
   const handleToggleStatus = (user: any) => {
     const newStatus = user.status === 'Suspended' || user.status === 'Disabled' ? 'Active' : 'Disabled';
     const actionText = newStatus === 'Active' ? 'Enable' : 'Disable';
@@ -113,7 +103,7 @@ export default function UserManagement() {
            try {
              const errData = await error.context.json();
              actualError = errData.error || actualError;
-           } catch(e) {}
+           } catch(e) { /* ignore */ }
         }
         throw new Error(actualError);
       }
@@ -150,7 +140,7 @@ export default function UserManagement() {
            try {
              const errData = await error.context.json();
              actualError = errData.error || actualError;
-           } catch(e) {}
+           } catch(e) { /* ignore */ }
         }
         throw new Error(actualError);
       }
@@ -495,9 +485,6 @@ export default function UserManagement() {
                         </button>
                         <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-blue-400 transition-colors" title="Edit" onClick={() => setEditUser({...user})}>
                           <Edit2 size={16}/>
-                        </button>
-                        <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-amber-400 transition-colors" title="Reset Password" onClick={() => handleResetPassword(user)}>
-                          <Key size={16}/>
                         </button>
                         {user.status === 'Suspended' || user.status === 'Disabled' ? (
                           <button className="p-2 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-emerald-400 transition-colors" title="Enable Account" onClick={() => handleToggleStatus(user)}>

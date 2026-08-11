@@ -268,9 +268,9 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
               key={ann.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`bg-[#0f172a]/80 backdrop-blur-md border ${false ? 'border-indigo-500/30 shadow-lg shadow-indigo-500/5' : 'border-slate-800'} rounded-2xl p-5 relative overflow-hidden group`}
+              className={`bg-[#0f172a]/80 backdrop-blur-md border ${!ann.read ? 'border-indigo-500/30 shadow-lg shadow-indigo-500/5' : 'border-slate-800'} rounded-2xl p-5 relative overflow-hidden group`}
             >
-              {false && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>}
+              {!ann.read && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>}
               
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -278,7 +278,7 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
                     <Icon size={20} />
                   </div>
                   <div>
-                    <h3 className={`text-lg font-bold leading-tight ${false ? 'text-white' : 'text-slate-300'}`}>
+                    <h3 className={`text-lg font-bold leading-tight ${!ann.read ? 'text-white' : 'text-slate-300'}`}>
                       {ann.title}
                     </h3>
                     <div className="flex items-center gap-2 mt-1 text-xs font-medium text-slate-500">
@@ -301,7 +301,7 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
                   <button className="p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                     <Share2 size={16} />
                   </button>
-                  {!false && (
+                  {!!ann.read && (
                     <button className="p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
                       <Trash2 size={16} />
                     </button>
@@ -309,7 +309,7 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
                 </div>
               </div>
               
-              <div className={`pl-14 text-sm leading-relaxed ${false ? 'text-slate-300' : 'text-slate-400'}`}>
+              <div className={`pl-14 text-sm leading-relaxed ${!ann.read ? 'text-slate-300' : 'text-slate-400'}`}>
                 {ann.description}
               </div>
               

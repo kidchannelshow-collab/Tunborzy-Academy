@@ -57,7 +57,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
   const isStep3Valid = 
     accountType !== '' && agreed &&
     ((accountType === 'Student' && portal !== '' && university.trim() !== '' && course.trim() !== '') || 
-     (accountType === 'Lecturer' && accessCode.trim().length > 0) || 
+     (accountType === 'Lecturer') || 
      (accountType === 'Admin' && accessCode.trim().length > 0));
 
   const nextStep = () => {
@@ -134,8 +134,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
             action: 'lecturer-signup',
             name,
             email,
-            password,
-            accessCode
+            password
           }
         });
 
@@ -677,7 +676,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
                       </motion.div>
                     )}
 
-                    {(accountType === 'Lecturer' || accountType === 'Admin') && (
+                    {accountType === 'Admin' && (
                       <motion.div
                         key="staff-fields"
                         initial={{ opacity: 0, height: 0 }}
@@ -686,11 +685,11 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
                         className="overflow-hidden"
                       >
                         <label className="block text-sm font-poppins font-medium text-slate-400 mb-1.5 pt-2">
-                          {accountType === 'Lecturer' ? 'Lecturer Access Code' : 'Admin Access Code'}
+                          Admin Access Code
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            {accountType === 'Lecturer' ? <Shield className="h-5 w-5 text-slate-500" /> : <Key className="h-5 w-5 text-slate-500" />}
+                            <Key className="h-5 w-5 text-slate-500" />
                           </div>
                           <input
                             type={showAccessCode ? "text" : "password"}
