@@ -46,7 +46,7 @@ export default function CBTReviewView({ attemptId, onBack }: any) {
             .eq('attempt_id', attemptId);
           if (ansErr) throw ansErr;
           
-          const answersMap: Record<string, number> = {};
+          const answersMap: Record<string, string> = {};
           ans?.forEach(a => {
             answersMap[a.question_id] = a.selected_option;
           });
@@ -111,9 +111,12 @@ export default function CBTReviewView({ attemptId, onBack }: any) {
         )}
         
         <div className="space-y-3">
-          {q.options.map((opt: string, idx: number) => {
-            const isSelected = selectedOption === idx;
-            const isActualCorrect = q.correct_option === idx;
+          {['A', 'B', 'C', 'D'].map((letter) => {
+            const optKey = 'option_' + letter.toLowerCase();
+            const optText = q[optKey];
+            if (!optText) return null;
+            const isSelected = selectedOption === letter;
+            const isActualCorrect = q.correct_option === letter;
             
             let bgClass = "bg-slate-900/50 border-slate-800";
             let textClass = "text-slate-300";
@@ -131,14 +134,14 @@ export default function CBTReviewView({ attemptId, onBack }: any) {
 
             return (
               <div
-                key={idx}
+                key={letter}
                 className={`w-full text-left p-4 md:p-5 rounded-xl border-2 transition-all flex items-center justify-between gap-4 ${bgClass}`}
               >
                 <div className="flex items-center gap-4">
                   <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center font-action font-bold text-sm border-2 ${isActualCorrect ? 'bg-emerald-500 border-emerald-500 text-slate-950' : isSelected ? 'bg-rose-500 border-rose-500 text-slate-950' : 'border-slate-600 text-slate-400'}`}>
-                    {String.fromCharCode(65 + idx)}
+                    {letter}
                   </div>
-                  <span className={`font-body text-base md:text-lg ${textClass}`}>{opt}</span>
+                  <span className={`font-body text-base md:text-lg ${textClass}`}>{optText}</span>
                 </div>
                 {icon}
               </div>

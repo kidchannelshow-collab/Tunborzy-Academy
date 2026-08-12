@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileText, Search, Filter, PlayCircle, Headphones, Link2, FileArchive, Image as ImageIcon, BookOpen, Clock, File, Bookmark, Zap
+import { FileText, Lock, Search, Filter, PlayCircle, Headphones, Link2, FileArchive, Image as ImageIcon, BookOpen, Clock, File, Bookmark, Zap
 } from 'lucide-react';
 import DashboardLayout from './dashboard/DashboardLayout';
 import { supabase } from '../supabaseClient';
@@ -182,7 +182,18 @@ export default function ResourceLibraryPage({ onLogout, onNavigate }: ResourceLi
               </div>
             ) : filteredMaterials.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredMaterials.map((m) => (
+                {filteredMaterials.map((m) => {
+                  let isLocked = false;
+                  let isPremium = false;
+                  try {
+                    const parsed = JSON.parse(m.description);
+                    if (parsed && parsed.publishSettings) {
+                      isLocked = parsed.publishSettings.isLocked;
+                      isPremium = parsed.publishSettings.isPremium;
+                      if (parsed.publishSettings.status !== 'Published') return null;
+                    }
+                  } catch(e) {}
+                  return (
                   <motion.div 
                     key={m.id}
                     layoutId={`card-${m.id}`}
@@ -232,7 +243,7 @@ export default function ResourceLibraryPage({ onLogout, onNavigate }: ResourceLi
                       </div>
                     </div>
                   </motion.div>
-                ))}
+                );})}
               </div>
             ) : (
               <div className="bg-[#0f172a]/50 border border-slate-800 border-dashed rounded-2xl p-16 flex flex-col items-center justify-center text-center">

@@ -20,6 +20,7 @@ const Login = lazy(() => import('./components/Login'));
 const MyCoursesPage = lazy(() => import('./components/MyCoursesPage'));
 const CourseChatSystem = lazy(() => import('./components/CourseChatSystem'));
 const ResourceLibraryPage = lazy(() => import('./components/ResourceLibraryPage'));
+const AcademicMaterialsPage = lazy(() => import('./components/student/AcademicMaterialsPage'));
 const CBTPracticePage = lazy(() => import('./components/CBTPracticePage'));
 const PastQuestionsPage = lazy(() => import('./components/PastQuestionsPage'));
 
@@ -41,7 +42,7 @@ import { supabase } from './supabaseClient';
 import { useProfile, getProfileCache } from './lib/useProfile';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'courses' | 'chats' | 'cbt' | 'past-questions' | 'resources' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'courses' | 'chats' | 'cbt' | 'past-questions' | 'resources' | 'academic-materials' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   
   const { profile: userProfile, loading: isLoadingSession } = useProfile();
@@ -252,6 +253,8 @@ export default function App() {
       )}
       {currentView === 'resources' && (
         <ResourceLibraryPage onLogout={handleLogout} onNavigate={handleNavigate} />
+      )}\n      {currentView === 'academic-materials' && (
+        <AcademicMaterialsPage onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
       {currentView === 'revision' && (
         <RevisionModePage onLogout={handleLogout} onNavigate={handleNavigate} />

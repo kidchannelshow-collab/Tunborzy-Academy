@@ -7,16 +7,16 @@ const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 console.error = (...args) => {
   const msg = args.map(a => (a instanceof Error ? a.message : (typeof a === 'object' && a !== null ? JSON.stringify(a) : String(a)))).join(' ');
-  if (msg.includes('Failed to fetch') || msg.includes('fetch failed')) {
-    originalConsoleWarn('Caught background fetch error (suppressed from console.error):', ...args);
+  if (msg.includes('Failed to fetch') || msg.includes('fetch failed') || msg.includes('PGRST205')) {
+    originalConsoleWarn('Caught background/setup error (suppressed from console.error):', ...args);
     return;
   }
   originalConsoleError(...args);
 };
 
 window.addEventListener('unhandledrejection', (event) => {
-  if (event.reason && (event.reason.message === 'Failed to fetch' || event.reason.message === 'fetch failed' || (typeof event.reason === 'string' && event.reason.includes('fetch')))) {
-    console.warn('Caught background fetch error:', event.reason);
+  if (event.reason && (event.reason.message === 'Failed to fetch' || event.reason.message === 'fetch failed' || (typeof event.reason === 'string' && event.reason.includes('fetch')) || (typeof event.reason === 'string' && event.reason.includes('PGRST205')) || (typeof event.reason === 'object' && JSON.stringify(event.reason).includes('PGRST205')))) {
+    console.warn('Caught background/setup error:', event.reason);
     event.preventDefault();
   }
 });

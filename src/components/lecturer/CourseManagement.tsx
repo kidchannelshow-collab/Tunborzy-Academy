@@ -1,57 +1,280 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Search, Edit2, Trash2, Plus, X, UploadCloud, Archive, Image as ImageIcon, CheckCircle } from 'lucide-react';
+import { Layers, Copy, ArrowUp, ArrowDown, BookOpen, Plus, Edit2, Trash2, ChevronRight, X, Folder, FileText, Search, Archive, Image as ImageIcon, UploadCloud, CheckCircle } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { useProfile } from '../../lib/useProfile';
+import LessonEditor from '../materials/LessonEditor';
+import BulkLessonModal from '../admin/BulkLessonModal';
+import ConfirmationModal from '../admin/ConfirmationModal';
 
 export default function CourseManagement() {
   const { profile } = useProfile();
-  const [courses, setCourses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   
-  const [showModal, setShowModal] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editingId, setEditingId] = useState('');
+  // Navigation State
+  const [path, setPath] = useState<{
+    course?: any;
+    topic?: string;
+  }>({});
+
+  // DB State
+  const [courses, setCourses] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Virtual Custom State (for empty topics not yet in DB)
+  const [customTopics, setCustomTopics] = useState<{course_code: string, name: string}[]>([]);
+
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modals
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showBulkLessonModal, setShowBulkLessonModal] = useState(false);
+  const [actionTitle, setActionTitle] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [isIrreversible, setIsIrreversible] = useState(false);
+  const [actionCallback, setActionCallback] = useState<(() => Promise<void>) | null>(null);
+
+  // Edit/Add Topic
+  const [showTopicModal, setShowTopicModal] = useState(false);
+  const [topicName, setTopicName] = useState('');
+  const [editingTopic, setEditingTopic] = useState<string | null>(null);
+
+  // Course Form Modal (Legacy Lecturer feature)
+  const [showCourseModal, setShowCourseModal] = useState(false);
+  const [isEditingCourse, setIsEditingCourse] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
-  
-  // Form State
-  const [title, setTitle] = useState('');
-  const [courseCode, setCourseCode] = useState('');
-  const [description, setDescription] = useState('');
-  const [portal, setPortal] = useState('Undergraduate');
-  const [department, setDepartment] = useState('');
-  const [faculty, setFaculty] = useState('');
-  const [level, setLevel] = useState('');
-  const [semester, setSemester] = useState('First Semester');
-  const [thumbnailUrl, setThumbnailUrl] = useState('');
-  const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [courseForm, setCourseForm] = useState({
+    title: '', course_code: '', description: '', portal: 'Undergraduate', department: '', faculty: '', level: '', semester: 'First Semester', thumbnail_url: '', cover_image_url: ''
+  });
+
+  // Lesson Editor State
+  const [showLessonEditor, setShowLessonEditor] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<any>(null);
 
   useEffect(() => {
-    if (profile) fetchCourses();
-  }, [profile?.id, profile?.role]);
+    if (profile) fetchData();
+    if (supabase) {
+      const channel1 = supabase.channel('public:courses-lecturer').on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, fetchData).subscribe();
+      const channel2 = supabase.channel('public:materials-lecturer').on('postgres_changes', { event: '*', schema: 'public', table: 'materials' }, fetchData).subscribe();
+      return () => {
+        supabase.removeChannel(channel1);
+        supabase.removeChannel(channel2);
+      };
+    }
+  }, [profile]);
 
-  const fetchCourses = async () => {
+  const fetchData = async () => {
     if (!supabase || !profile) return;
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('lecturer_id', profile.id)
-        .order('created_at', { ascending: false });
+      const [coursesRes] = await Promise.all([
+        supabase.from('courses').select('*').eq('lecturer_id', profile.id).order('order_index', { ascending: true }).order('created_at', { ascending: false })
+      ]);
+      if (coursesRes.data) {
+        setCourses(coursesRes.data);
+        const courseCodes = coursesRes.data.map((c: any) => c.course_code);
+        if (courseCodes.length > 0) {
+          const { data: materialsData } = await supabase.from('materials').select('id, title, topic, course_code, is_published, file_type, lecturer_id, order_index').in('course_code', courseCodes).order('order_index', { ascending: true }).order('created_at', { ascending: true });
+          if (materialsData) setMaterials(materialsData);
+        } else {
+          setMaterials([]);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setIsLoading(false);
+  };
+
+  const handleDangerousAction = (title: string, message: string, irreversible: boolean, callback: () => Promise<void>) => {
+    setActionTitle(title);
+    setActionMessage(message);
+    setIsIrreversible(irreversible);
+    setActionCallback(() => callback);
+    setIsModalOpen(true);
+  };
+
+
+  const handleDuplicateTopic = async (topicName: string, courseCode: string) => {
+    if (!supabase) return;
+    setIsLoading(true);
+    try {
+      const { data: mats } = await supabase.from('materials').select('*').eq('course_code', courseCode).eq('topic', topicName);
+      if (mats && mats.length > 0) {
+        const newTopicName = `${topicName} (Copy)`;
+        const newMats = mats.map((m: any) => {
+          const { id: mid, created_at: mc, updated_at: mu, ...restMat } = m;
+          
+          let newDesc = restMat.description;
+          try {
+            const parsed = JSON.parse(newDesc || '{}');
+            if (parsed.publishSettings) {
+              parsed.publishSettings.status = 'Draft';
+              parsed.publishSettings.auditLogs = [];
+            }
+            newDesc = JSON.stringify(parsed);
+          } catch(e) {}
+
+          return {
+            ...restMat,
+            topic: newTopicName,
+            is_published: false,
+            description: newDesc
+          };
+        });
+        await supabase.from('materials').insert(newMats);
+      } else {
+        setCustomTopics([...customTopics, { course_code: courseCode, name: `${topicName} (Copy)` }]);
+      }
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      alert('Error duplicating topic');
+    }
+    setIsLoading(false);
+  };
+
+  const handleReorder = async (table: string, currentItems: any[], index: number, direction: 'up' | 'down') => {
+    if (!supabase) return;
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= currentItems.length) return;
+
+    setIsLoading(true);
+    try {
+      const itemsToUpdate = [...currentItems].map((item, i) => ({ ...item, order_index: item.order_index || i }));
       
-      if (error) throw error;
-      setCourses(data || []);
+      const tempOrder = itemsToUpdate[index].order_index;
+      itemsToUpdate[index].order_index = itemsToUpdate[targetIndex].order_index;
+      itemsToUpdate[targetIndex].order_index = tempOrder;
+
+      const item1 = itemsToUpdate[index];
+      const item2 = itemsToUpdate[targetIndex];
+
+      if (table === 'materials') {
+        await Promise.all([
+          supabase.from(table).update({ order_index: item1.order_index }).eq('id', item1.id),
+          supabase.from(table).update({ order_index: item2.order_index }).eq('id', item2.id)
+        ]);
+      } else if (table === 'topics') {
+        await Promise.all([
+          supabase.from('materials').update({ order_index: item1.order_index }).eq('course_code', path.course!.course_code).eq('topic', item1.name),
+          supabase.from('materials').update({ order_index: item2.order_index }).eq('course_code', path.course!.course_code).eq('topic', item2.name)
+        ]);
+      }
+      fetchData();
+    } catch (e) {
+      console.error(e);
+      alert('Error reordering');
+    }
+    setIsLoading(false);
+  };
+
+  const executeAction = async () => {
+    if (actionCallback) await actionCallback();
+    setIsModalOpen(false);
+  };
+
+  // Derived Data
+  const topics = useMemo(() => {
+    if (!path.course) return [];
+    const dbTopics = Array.from(new Set(materials.filter(m => m.course_code === path.course!.course_code).map(m => m.topic).filter(Boolean)));
+    const custom = customTopics.filter(t => t.course_code === path.course!.course_code).map(t => t.name);
+    return Array.from(new Set([...dbTopics, ...custom]));
+  }, [materials, customTopics, path.course]);
+
+  const lessons = useMemo(() => {
+    if (!path.course || !path.topic) return [];
+    return materials.filter(m => m.course_code === path.course!.course_code && m.topic === path.topic && m.file_type === 'lesson');
+  }, [materials, path.course, path.topic]);
+
+  // Filtering
+  const getFilteredList = (list: any[]) => {
+    if (!searchQuery) return list;
+    return list.filter(item => {
+      if (typeof item === 'string') return item.toLowerCase().includes(searchQuery.toLowerCase());
+      if (item.title) return item.title.toLowerCase().includes(searchQuery.toLowerCase()) || item.course_code?.toLowerCase().includes(searchQuery.toLowerCase());
+      return false;
+    });
+  };
+
+  // Actions
+  const handleDuplicateLesson = async (lesson: any) => {
+    if (!supabase) return;
+    try {
+      const { data: fullLesson } = await supabase.from('materials').select('*').eq('id', lesson.id).single();
+      if (!fullLesson) return;
+      
+      let newDescription = fullLesson.description;
+      try {
+        const parsed = JSON.parse(newDescription);
+        if (parsed.publishSettings) {
+          parsed.publishSettings.status = 'Draft';
+          parsed.publishSettings.auditLogs = [];
+          newDescription = JSON.stringify(parsed);
+        }
+      } catch(e) {}
+
+      const { id, created_at, updated_at, ...rest } = fullLesson;
+      const copy = {
+        ...rest,
+        title: `${rest.title} (Copy)`,
+        is_published: false,
+        lecturer_id: profile?.id,
+        lecturer_name: profile?.full_name || 'Tutor'
+      };
+      
+      await supabase.from('materials').insert([copy]);
+      fetchData();
     } catch (err) {
       console.error(err);
-    } finally {
-      setLoading(false);
+      alert('Failed to duplicate lesson.');
     }
   };
 
+  const handleSaveTopic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    try {
+      if (editingTopic) {
+        await supabase.from('materials').update({ topic: topicName }).eq('topic', editingTopic).eq('course_code', path.course!.course_code);
+        setCustomTopics(prev => prev.map(t => t.course_code === path.course!.course_code && t.name === editingTopic ? { ...t, name: topicName } : t));
+      } else {
+        setCustomTopics(prev => [...prev, { course_code: path.course!.course_code, name: topicName }]);
+      }
+      setShowTopicModal(false);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteTopic = async (topic: string) => {
+    if (!supabase) return;
+    try {
+      await supabase.from('materials').delete().eq('topic', topic).eq('course_code', path.course!.course_code);
+      setCustomTopics(prev => prev.filter(t => !(t.course_code === path.course!.course_code && t.name === topic)));
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteLesson = async (lesson: any) => {
+    if (!supabase) return;
+    try {
+      await supabase.from('materials').delete().eq('id', lesson.id);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Course Image Upload
   const handleFileUpload = async (file: File, type: 'thumbnail' | 'cover') => {
     if (!supabase) return;
     setIsUploading(true);
@@ -59,27 +282,17 @@ export default function CourseManagement() {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `course_images/${fileName}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('tonborzy-content')
-        .upload(filePath, file, { cacheControl: '3600', upsert: false });
-        
+      const { error: uploadError } = await supabase.storage.from('tonborzy-content').upload(filePath, file, { cacheControl: '3600', upsert: false });
       if (uploadError) {
         console.warn('Storage error, using dummy url', uploadError);
-        // Fallback dummy image
-        const url = type === 'thumbnail' 
-          ? 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80' 
-          : 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80';
-        if (type === 'thumbnail') setThumbnailUrl(url);
-        else setCoverImageUrl(url);
+        const url = type === 'thumbnail' ? 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&q=80' : 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1600&q=80';
+        if (type === 'thumbnail') setCourseForm(prev => ({...prev, thumbnail_url: url}));
+        else setCourseForm(prev => ({...prev, cover_image_url: url}));
         return;
       }
-      
       const { data } = supabase.storage.from('tonborzy-content').getPublicUrl(filePath);
-      
-      if (type === 'thumbnail') setThumbnailUrl(data.publicUrl);
-      else setCoverImageUrl(data.publicUrl);
-      
+      if (type === 'thumbnail') setCourseForm(prev => ({...prev, thumbnail_url: data.publicUrl}));
+      else setCourseForm(prev => ({...prev, cover_image_url: data.publicUrl}));
     } catch (err) {
       console.error(err);
     } finally {
@@ -87,326 +300,263 @@ export default function CourseManagement() {
     }
   };
 
-  const resetForm = () => {
-    setTitle('');
-    setCourseCode('');
-    setDescription('');
-    setPortal('Undergraduate');
-    setDepartment('');
-    setFaculty('');
-    setLevel('');
-    setSemester('First Semester');
-    setThumbnailUrl('');
-    setCoverImageUrl('');
-    setEditingId('');
-    setIsEditing(false);
-  };
-
-  const openEditModal = (course: any) => {
-    setTitle(course.title);
-    setCourseCode(course.course_code || '');
-    setDescription(course.description || '');
-    setPortal(course.portal);
-    setDepartment(course.department || '');
-    setFaculty(course.faculty || '');
-    setLevel(course.level || '');
-    setSemester(course.semester || 'First Semester');
-    setThumbnailUrl(course.thumbnail_url || '');
-    setCoverImageUrl(course.cover_image_url || '');
-    setEditingId(course.id);
-    setIsEditing(true);
-    setShowModal(true);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSaveCourse = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase || !profile) return;
-    
-    const courseData = {
-      lecturer_id: profile.id,
-      title,
-      course_code: courseCode,
-      description,
-      portal,
-      department,
-      faculty,
-      level,
-      semester,
-      thumbnail_url: thumbnailUrl,
-      cover_image_url: coverImageUrl
-    };
-
     try {
-      if (isEditing) {
-        await supabase.from('courses').update(courseData).eq('id', editingId);
+      const courseData = { ...courseForm, lecturer_id: profile.id };
+      if (isEditingCourse) {
+        await supabase.from('courses').update(courseData).eq('id', editingCourseId);
       } else {
         await supabase.from('courses').insert(courseData);
       }
-      setShowModal(false);
-      resetForm();
-      fetchCourses();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save course. Check console.');
-    }
-  };
-
-  const toggleArchive = async (id: string, currentStatus: boolean) => {
-    if (!supabase) return;
-    try {
-      await supabase.from('courses').update({ is_archived: !currentStatus }).eq('id', id);
-      setCourses(courses.map(c => c.id === id ? { ...c, is_archived: !currentStatus } : c));
+      setShowCourseModal(false);
+      fetchData();
     } catch (err) {
       console.error(err);
     }
   };
 
   const deleteCourse = async (id: string) => {
-    if (!confirm('Are you sure you want to permanently delete this course? This action cannot be undone.')) return;
     if (!supabase) return;
     try {
       await supabase.from('courses').delete().eq('id', id);
-      setCourses(courses.filter(c => c.id !== id));
+      fetchData();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const filteredCourses = courses.filter(c => 
-    c.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (c.course_code || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-7xl mx-auto pb-12 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold text-white mb-2">Course Management</h1>
-          <p className="text-slate-400">Create and manage your courses across all portals.</p>
-        </div>
-        <button 
-          onClick={() => { resetForm(); setShowModal(true); }}
-          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-action font-bold px-6 py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-        >
-          <Plus size={20} />
-          Create Course
-        </button>
-      </div>
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <ConfirmationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onConfirm={executeAction} title={actionTitle} message={actionMessage} isIrreversible={isIrreversible} />
 
-      <div className="bg-[#0f172a] border border-slate-800 rounded-3xl p-4 flex items-center justify-between shadow-lg">
-        <div className="relative max-w-md w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
-          <input 
-            type="text" 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search courses..." 
-            className="w-full bg-[#020617]/50 border border-slate-700 rounded-xl pl-10 pr-4 py-2 text-white focus:outline-none focus:border-amber-500"
-          />
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="p-12 text-center text-slate-400">Loading courses...</div>
-      ) : filteredCourses.length === 0 ? (
-        <div className="bg-[#0f172a] border border-slate-800 border-dashed rounded-3xl p-16 flex flex-col items-center justify-center text-center">
-          <div className="w-16 h-16 bg-slate-800/50 rounded-full flex items-center justify-center mb-4">
-            <BookOpen size={24} className="text-slate-500" />
-          </div>
-          <h3 className="text-xl font-display font-bold text-white mb-2">No courses found</h3>
-          <p className="text-slate-400 max-w-md">Get started by creating your first course to begin sharing materials and chats with students.</p>
-          <button onClick={() => { resetForm(); setShowModal(true); }} className="mt-6 text-amber-500 font-bold hover:underline">Create a Course</button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredCourses.map(course => (
-            <div key={course.id} className={`bg-[#0f172a] border ${course.is_archived ? 'border-slate-800 opacity-75' : 'border-slate-700 hover:border-amber-500/50'} rounded-2xl overflow-hidden transition-all flex flex-col shadow-xl group relative`}>
-              
-              {course.is_archived && (
-                <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur-sm text-slate-300 text-xs font-bold px-3 py-1 rounded-full border border-slate-700 flex items-center gap-1">
-                  <Archive size={12} /> Archived
-                </div>
-              )}
-
-              <div className="h-40 bg-slate-900 relative">
-                {course.thumbnail_url ? (
-                  <img loading="lazy" src={course.thumbnail_url} alt={course.title} className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-600">
-                    <ImageIcon size={40} />
-                  </div>
-                )}
-                <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-[#0f172a] to-transparent"></div>
-              </div>
-              
-              <div className="p-6 flex-1 flex flex-col">
-                <div className="flex justify-between items-start mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{course.portal}</span>
-                  {course.course_code && (
-                    <span className="text-xs font-mono font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{course.course_code}</span>
-                  )}
-                </div>
-                
-                <h3 className="text-xl font-display font-bold text-white mb-2 line-clamp-2">{course.title}</h3>
-                <p className="text-sm font-body text-slate-400 line-clamp-2 flex-1 mb-4">{course.description || 'No description provided.'}</p>
-                
-                <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-6">
-                  {course.department && <span>{course.department}</span>}
-                  {course.level && <span>• {course.level}L</span>}
-                </div>
-                
-                <div className="pt-4 border-t border-slate-800/50 flex items-center justify-between">
-                  <button onClick={() => toggleArchive(course.id, course.is_archived)} className="text-slate-400 hover:text-white transition-colors flex items-center gap-1.5 text-sm font-semibold">
-                    <Archive size={16} /> {course.is_archived ? 'Unarchive' : 'Archive'}
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => openEditModal(course)} className="p-2 text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 rounded-lg transition-colors" title="Edit">
-                      <Edit2 size={18} />
-                    </button>
-                    <button onClick={() => deleteCourse(course.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      {showBulkLessonModal && (
+        <BulkLessonModal
+          courseCode={path.course!.course_code}
+          topic={path.topic!}
+          onClose={() => setShowBulkLessonModal(false)}
+          onSuccess={() => { setShowBulkLessonModal(false); fetchData(); }}
+        />
       )}
-
-      {/* Create/Edit Modal */}
       <AnimatePresence>
-        {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl"
-            >
-              <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-[#0f172a]/95 backdrop-blur shrink-0 rounded-t-2xl">
-                <h2 className="text-xl font-display font-bold text-white">{isEditing ? 'Edit Course' : 'Create New Course'}</h2>
-                <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white transition-colors">
-                  <X size={24} />
-                </button>
+        {showTopicModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#0f172a] border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-white capitalize">{editingTopic ? 'Edit Topic' : 'Add Topic'}</h3>
+                <button onClick={() => setShowTopicModal(false)} className="text-slate-400 hover:text-white"><X size={20} /></button>
               </div>
-              
-              <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                <form id="course-form" onSubmit={handleSave} className="space-y-6">
+              <form onSubmit={handleSaveTopic} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-poppins text-slate-400 mb-1">Topic Name</label>
+                  <input type="text" value={topicName} onChange={e => setTopicName(e.target.value)} className="w-full bg-[#020617] border border-slate-700 text-white rounded-xl px-4 py-2" required />
+                </div>
+                <div className="pt-4 flex gap-3">
+                  <button type="button" onClick={() => setShowTopicModal(false)} className="flex-1 py-3 px-4 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
+                  <button type="submit" className="flex-1 py-3 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-slate-950 font-bold transition-colors disabled:opacity-50">Save</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showCourseModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
+              <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-[#0f172a]/95 backdrop-blur shrink-0 rounded-t-2xl">
+                <h2 className="text-xl font-display font-bold text-white">{isEditingCourse ? 'Edit Course' : 'Create New Course'}</h2>
+                <button type="button" onClick={() => setShowCourseModal(false)} className="text-slate-400 hover:text-white transition-colors"><X size={24} /></button>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                <form id="course-form" onSubmit={handleSaveCourse}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2 md:col-span-2">
+                    <div className="space-y-2">
                       <label className="text-sm font-bold text-slate-300">Course Title *</label>
-                      <input required type="text" value={title} onChange={e => setTitle(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. Introduction to Mechanics" />
+                      <input type="text" required value={courseForm.title} onChange={e => setCourseForm({...courseForm, title: e.target.value})} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. Introduction to Physics" />
                     </div>
-                    
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-slate-300">Course Code</label>
-                      <input type="text" value={courseCode} onChange={e => setCourseCode(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. PHY 101" />
+                      <input type="text" value={courseForm.course_code} onChange={e => setCourseForm({...courseForm, course_code: e.target.value})} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. PHY 101" />
                     </div>
-                    
                     <div className="space-y-2">
                       <label className="text-sm font-bold text-slate-300">Portal *</label>
-                      <select required value={portal} onChange={e => setPortal(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500">
+                      <select required value={courseForm.portal} onChange={e => setCourseForm({...courseForm, portal: e.target.value})} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500">
                         <option value="Undergraduate">Undergraduate</option>
                         <option value="UTME">UTME</option>
                         <option value="Post-UTME">Post-UTME</option>
                       </select>
                     </div>
-
-                    {portal === 'Undergraduate' && (
-                      <>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-300">Faculty</label>
-                          <input type="text" value={faculty} onChange={e => setFaculty(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. Science" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-300">Department</label>
-                          <input type="text" value={department} onChange={e => setDepartment(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500" placeholder="e.g. Physics" />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-300">Level</label>
-                          <select value={level} onChange={e => setLevel(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500">
-                            <option value="">Select Level</option>
-                            <option value="100">100 Level</option>
-                            <option value="200">200 Level</option>
-                            <option value="300">300 Level</option>
-                            <option value="400">400 Level</option>
-                          </select>
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-slate-300">Semester</label>
-                          <select value={semester} onChange={e => setSemester(e.target.value)} className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500">
-                            <option value="First Semester">First Semester</option>
-                            <option value="Second Semester">Second Semester</option>
-                          </select>
-                        </div>
-                      </>
-                    )}
-                    
                     <div className="space-y-2 md:col-span-2">
                       <label className="text-sm font-bold text-slate-300">Description</label>
-                      <textarea value={description} onChange={e => setDescription(e.target.value)} className="w-full h-32 bg-[#020617] border border-slate-800 rounded-xl p-4 text-white focus:outline-none focus:border-amber-500 resize-none" placeholder="Provide a brief overview of what students will learn..."></textarea>
+                      <textarea value={courseForm.description} onChange={e => setCourseForm({...courseForm, description: e.target.value})} className="w-full h-32 bg-[#020617] border border-slate-800 rounded-xl p-4 text-white focus:outline-none focus:border-amber-500 resize-none" placeholder="Provide a brief overview of what students will learn..."></textarea>
                     </div>
-
-                    {/* Image Uploads */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-300 flex items-center justify-between">
-                        Course Thumbnail 
-                        {thumbnailUrl && <span className="text-emerald-500 flex items-center gap-1 text-xs"><CheckCircle size={12}/> Uploaded</span>}
-                      </label>
-                      <div 
-                        onClick={() => thumbnailInputRef.current?.click()}
-                        className={`h-32 border-2 border-dashed ${thumbnailUrl ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-slate-700 hover:border-amber-500 hover:bg-amber-500/5'} rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all relative overflow-hidden`}
-                      >
-                        <input type="file" ref={thumbnailInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], 'thumbnail')} />
-                        {thumbnailUrl ? (
-                          <img loading="lazy" src={thumbnailUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="Thumbnail" />
-                        ) : (
-                          <>
-                            <UploadCloud size={24} className="text-slate-500 mb-2" />
-                            <span className="text-xs text-slate-400 font-medium">Upload Image (16:9)</span>
-                          </>
-                        )}
-                        {isUploading && <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center text-amber-500 font-bold text-xs animate-pulse">Uploading...</div>}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-slate-300 flex items-center justify-between">
-                        Cover Image (Optional)
-                        {coverImageUrl && <span className="text-emerald-500 flex items-center gap-1 text-xs"><CheckCircle size={12}/> Uploaded</span>}
-                      </label>
-                      <div 
-                        onClick={() => coverInputRef.current?.click()}
-                        className={`h-32 border-2 border-dashed ${coverImageUrl ? 'border-emerald-500/50 bg-emerald-500/5' : 'border-slate-700 hover:border-amber-500 hover:bg-amber-500/5'} rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all relative overflow-hidden`}
-                      >
-                        <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && handleFileUpload(e.target.files[0], 'cover')} />
-                        {coverImageUrl ? (
-                          <img loading="lazy" src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-50" alt="Cover" />
-                        ) : (
-                          <>
-                            <ImageIcon size={24} className="text-slate-500 mb-2" />
-                            <span className="text-xs text-slate-400 font-medium">Upload Banner Image</span>
-                          </>
-                        )}
-                        {isUploading && <div className="absolute inset-0 bg-slate-900/80 flex items-center justify-center text-amber-500 font-bold text-xs animate-pulse">Uploading...</div>}
-                      </div>
-                    </div>
-
                   </div>
                 </form>
               </div>
-              
               <div className="p-6 border-t border-slate-800 flex justify-end gap-4 shrink-0 rounded-b-2xl bg-[#0f172a]">
-                <button type="button" onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl font-bold text-slate-300 hover:bg-slate-800 transition-colors">
-                  Cancel
-                </button>
+                <button type="button" onClick={() => setShowCourseModal(false)} className="px-6 py-3 rounded-xl font-bold text-slate-300 hover:bg-slate-800 transition-colors">Cancel</button>
                 <button form="course-form" type="submit" disabled={isUploading} className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-8 py-3 rounded-xl font-bold transition-colors disabled:opacity-50">
-                  {isEditing ? 'Save Changes' : 'Create Course'}
+                  {isEditingCourse ? 'Save Changes' : 'Create Course'}
                 </button>
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-2 flex items-center gap-3">
+            <BookOpen className="text-orange-400" size={28} /> Course Management
+          </h1>
+          <p className="text-sm font-body text-slate-400">Hierarchical course curriculum and materials management.</p>
+        </div>
+      </div>
+
+      <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6 min-h-[500px] flex flex-col">
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-2 mb-6 text-sm text-slate-400 overflow-x-auto pb-2 custom-scrollbar">
+          <button onClick={() => { setPath({}); setSearchQuery(''); }} className={`whitespace-nowrap hover:text-white transition-colors ${!path.course ? 'text-indigo-400 font-bold' : ''}`}>My Courses</button>
+          {path.course && (
+            <>
+              <ChevronRight size={14} className="flex-shrink-0" />
+              <button onClick={() => { setPath({ course: path.course }); setSearchQuery(''); }} className={`whitespace-nowrap hover:text-white transition-colors ${!path.topic ? 'text-indigo-400 font-bold' : ''}`}>{path.course.course_code}</button>
+            </>
+          )}
+          {path.topic && (
+            <>
+              <ChevronRight size={14} className="flex-shrink-0" />
+              <span className="whitespace-nowrap text-indigo-400 font-bold">{path.topic}</span>
+            </>
+          )}
+        </div>
+
+        {/* Action Bar */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-6">
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+            <input 
+              type="text" 
+              placeholder="Search..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-[#020617] border border-slate-700 text-white rounded-xl pl-10 pr-4 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all text-sm"
+            />
+          </div>
+          {!path.course ? null : !path.topic ? (
+            <button 
+              onClick={() => { setEditingTopic(null); setTopicName(''); setShowTopicModal(true); }}
+              className="w-full sm:w-auto bg-orange-500 hover:bg-orange-400 text-slate-950 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus size={16} /> Add Topic
+            </button>
+          ) : (
+            <button 
+              onClick={() => { setEditingLesson(null); setShowLessonEditor(true); }}
+              className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2"
+            >
+              <Plus size={16} /> Create Lesson
+            </button>
+          )}
+        </div>
+
+        {/* List Area */}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="text-center text-slate-400 py-10">Loading hierarchy...</div>
+          ) : (
+            <div className="space-y-3">
+              {/* COURSES */}
+              {!path.course && (
+                getFilteredList(courses).length === 0 ? (
+                  <div className="text-center text-slate-500 py-10 bg-[#020617]/50 rounded-xl border border-slate-800 border-dashed">No courses found.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {getFilteredList(courses).map((course, i) => (
+                      <div key={i} className="flex flex-col justify-between p-4 rounded-xl bg-[#020617]/50 border border-slate-800/50 hover:border-indigo-500/30 transition-colors group">
+                        <div className="mb-4 cursor-pointer" onClick={() => setPath({ course })}>
+                          <h3 className="font-bold text-white mb-1 line-clamp-2">{course.title}</h3>
+                          <p className="text-xs text-slate-400 font-mono bg-slate-800/50 inline-block px-2 py-0.5 rounded">{course.course_code}</p>
+                        </div>
+                        
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* TOPICS */}
+              {path.course && !path.topic && (
+                getFilteredList(topics).length === 0 ? (
+                  <div className="text-center text-slate-500 py-10 bg-[#020617]/50 rounded-xl border border-slate-800 border-dashed">No topics found.</div>
+                ) : getFilteredList(topics).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-[#020617]/50 border border-slate-800/50 hover:border-indigo-500/30 transition-colors group">
+                    <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => setPath({ ...path, topic: item })}>
+                      <FileText className="text-indigo-400" size={20} />
+                      <span className="font-bold text-white">{item}</span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingTopic(item); setTopicName(item); setShowTopicModal(true); }} className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg"><Edit2 size={16} /></button>
+                      <button onClick={() => handleDangerousAction('Delete Topic', `Are you sure you want to delete this topic and its lessons?`, true, () => handleDeleteTopic(item))} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))
+              )}
+
+              {/* LESSONS */}
+              {path.topic && (
+                getFilteredList(lessons).length === 0 ? (
+                  <div className="text-center flex flex-col items-center justify-center py-16 bg-[#020617]/50 rounded-xl border border-slate-800 border-dashed">
+                    <FileText size={48} className="text-slate-700 mb-4" />
+                    <p className="text-slate-400 font-medium mb-1">No lessons yet.</p>
+                    <button onClick={() => { setEditingLesson(null); setShowLessonEditor(true); }} className="mt-4 bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2 rounded-xl text-sm font-bold">Create Lesson</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {getFilteredList(lessons).map((lesson, i) => (
+                      <div key={i} className="flex flex-col justify-between p-4 rounded-xl bg-[#020617]/50 border border-slate-800/50 hover:border-indigo-500/30 transition-colors group">
+                        <div className="mb-4 cursor-pointer" onClick={() => { setEditingLesson(lesson); setShowLessonEditor(true); }}>
+                          <div className={`mb-3 inline-block text-xs font-medium px-2 py-0.5 rounded ${lesson.is_published ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                            {lesson.is_published ? 'Published' : 'Draft'}
+                          </div>
+                          <h3 className="font-bold text-white mb-1 line-clamp-2">{lesson.title || 'Untitled Lesson'}</h3>
+                        </div>
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {i > 0 && <button onClick={(e) => { e.stopPropagation(); handleReorder('materials', getFilteredList(lessons), i, 'up'); }} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"><ArrowUp size={16} /></button>}
+                            {i < getFilteredList(lessons).length - 1 && <button onClick={(e) => { e.stopPropagation(); handleReorder('materials', getFilteredList(lessons), i, 'down'); }} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg"><ArrowDown size={16} /></button>}
+                            <button onClick={() => handleDangerousAction('Duplicate Lesson', `Are you sure you want to duplicate "${lesson.title}"?`, false, () => handleDuplicateLesson(lesson))} className="p-1.5 text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg" title="Duplicate"><Copy size={16} /></button>
+                          {lesson.lecturer_id === profile?.id && (
+                            <button onClick={() => { setEditingLesson(lesson); setShowLessonEditor(true); }} className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg"><Edit2 size={16} /></button>
+                          )}
+                          {lesson.lecturer_id === profile?.id && (
+                            <button onClick={() => handleDangerousAction('Delete Lesson', `Are you sure you want to delete ${lesson.title}?`, true, () => handleDeleteLesson(lesson))} className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"><Trash2 size={16} /></button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showLessonEditor && (
+          <LessonEditor 
+            courseCode={path.course!.course_code}
+            topic={path.topic!}
+            portal={path.course!.portal || 'Undergraduate'}
+            semester={path.course!.semester || 'First Semester'}
+            lesson={editingLesson}
+            onClose={() => setShowLessonEditor(false)}
+            onSaved={() => {
+              setShowLessonEditor(false);
+              fetchData();
+            }}
+          />
         )}
       </AnimatePresence>
     </motion.div>

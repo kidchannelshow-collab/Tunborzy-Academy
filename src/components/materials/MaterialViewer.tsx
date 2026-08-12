@@ -1,3 +1,4 @@
+import StudentLessonViewer from "./StudentLessonViewer";
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ZoomIn, ZoomOut, Maximize, Bookmark, Edit3, X, Save } from 'lucide-react';
@@ -96,6 +97,11 @@ export default function MaterialViewer({ material, onClose }: MaterialViewerProp
       setIsFullscreen(false);
     }
   };
+
+  
+  if (material.file_type === 'lesson') {
+    return <StudentLessonViewer material={material} onClose={onClose} />;
+  }
 
   return (
     <motion.div

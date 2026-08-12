@@ -1,0 +1,198 @@
+208:    return (
+209-      <div className="flex items-center justify-center h-64">
+210-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500"></div>
+211-      </div>
+212-    );
+213-  }
+214-
+215:  return (
+216-    <motion.div
+217-      initial={{ opacity: 0, y: 20 }}
+218-      animate={{ opacity: 1, y: 0 }}
+219-      className="space-y-8 max-w-7xl mx-auto relative"
+220-    >
+221-      <ConfirmationModal 
+222-        isOpen={isModalOpen}
+223-        onClose={() => setIsModalOpen(false)}
+224-        onConfirm={() => {
+225-          if (pendingAction) {
+226-            pendingAction();
+227-          } else {
+228-            setIsModalOpen(false);
+229-          }
+230-        }}
+231-        title={actionTitle}
+232-        message={actionMessage}
+233-        isIrreversible={isIrreversible}
+234-      />
+235-      
+236-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+237-        <div>
+238-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-2 flex items-center gap-3">
+239-            <Bot className="text-emerald-400" size={28} /> AI Management
+240-          </h1>
+241-          <p className="text-sm font-body text-slate-400">Configure and monitor the AI Study Assistant.</p>
+242-        </div>
+243-        <button 
+244-          onClick={() => {
+245-            if (aiEnabled) {
+246-              handleDangerousAction('Disable AI Assistant', 'Are you sure you want to disable the AI Assistant? Students will no longer be able to use it.', false, toggleAIEnabled);
+247-            } else {
+248-              toggleAIEnabled();
+249-            }
+250-          }}
+251-          disabled={isSaving}
+252-          className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 ${
+253-            aiEnabled ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+254-          } ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+255-        >
+256-          <Power size={16} /> {aiEnabled ? 'Disable AI Assistant' : 'Enable AI Assistant'}
+257-        </button>
+258-      </div>
+259-
+260-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+261-        <div className="lg:col-span-2 space-y-6">
+262-          <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6">
+263-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+264-              <MessageSquare className="text-emerald-400" size={20} /> Welcome Message Configuration
+265-            </h2>
+266-                        <div className="space-y-4">
+267-              <div>
+268-                <label className="block text-sm font-semibold text-slate-300 mb-2">Default Welcome Message</label>
+269-                <textarea 
+270-                  rows={4}
+271-                  value={welcomeMessage}
+272-                  onChange={(e) => setWelcomeMessage(e.target.value)}
+273-                  placeholder="Set a custom welcome message for the AI..."
+274-                  className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 resize-none"
+275-                />
+276-                <p className="text-xs text-slate-500 mt-2">This is the first message the AI sends when a student opens the chat.</p>
+277-              </div>
+278-            </div>
+279-          </div>
+280-          
+281-          <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6">
+282-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+283-              <Bot className="text-blue-400" size={20} /> Prompt Manager
+284-            </h2>
+285-            <div className="space-y-6">
+286-              <div>
+287-                <label className="block text-sm font-semibold text-slate-300 mb-2">System Prompt</label>
+288-                <textarea 
+289-                  rows={6}
+290-                  value={systemPrompt}
+291-                  onChange={(e) => setSystemPrompt(e.target.value)}
+292-                  className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500 resize-none"
+293-                />
+294-                <p className="text-xs text-slate-500 mt-2">The core instructions that define the AI's identity and boundaries.</p>
+295-              </div>
+296-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+297-                <div>
+298-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Personality</label>
+299-                  <input 
+300-                    type="text"
+301-                    value={personality}
+302-                    onChange={(e) => setPersonality(e.target.value)}
+303-                    className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+304-                  />
+305-                </div>
+306-                <div>
+307-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Teaching Style</label>
+308-                  <input 
+309-                    type="text"
+310-                    value={teachingStyle}
+311-                    onChange={(e) => setTeachingStyle(e.target.value)}
+312-                    className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+313-                  />
+314-                </div>
+315-                <div>
+316-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Answer Length</label>
+317-                  <select 
+318-                    value={answerLength}
+319-                    onChange={(e) => setAnswerLength(e.target.value)}
+320-                    className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+321-                  >
+322-                    <option value="Concise">Concise</option>
+323-                    <option value="Detailed">Detailed</option>
+324-                    <option value="Comprehensive">Comprehensive</option>
+325-                  </select>
+326-                </div>
+327-                <div>
+328-                  <label className="block text-sm font-semibold text-slate-300 mb-2">Language</label>
+329-                  <input 
+330-                    type="text"
+331-                    value={language}
+332-                    onChange={(e) => setLanguage(e.target.value)}
+333-                    className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-blue-500"
+334-                  />
+335-                </div>
+336-              </div>
+337-            </div>
+338-          </div>
+339-
+340-          <div className="flex gap-4">
+341-            <button 
+342-              onClick={() => saveChanges(aiEnabled, welcomeMessage, systemPrompt, personality, teachingStyle, answerLength, language)}
+343-              disabled={isSaving}
+344-              className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:shadow-none"
+345-            >
+346-              {isSaving ? 'Saving...' : 'Save Settings'}
+347-            </button>
+348-            <button 
+349-              onClick={() => handleDangerousAction('Reset Defaults', 'Are you sure you want to reset all AI settings and prompts back to their factory defaults?', true, handleResetDefaults)}
+350-              disabled={isSaving}
+351-              className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors"
+352-            >
+353-              Reset Defaults
+354-            </button>
+355-          </div>
+356-        </div>
+357-        
+358-        <div className="space-y-6">
+359-          <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-3xl p-6">
+360-            <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+361-              <Activity className="text-blue-400" size={20} /> Usage Statistics
+362-            </h2>
+363-            <div className="space-y-4">
+364-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+365-                <span className="text-sm text-slate-400">Total Conversations</span>
+366-                <span className="text-xl font-bold text-white">{stats.totalQuestions}</span>
+367-              </div>
+368-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+369-                <span className="text-sm text-slate-400">Conversations Today</span>
+370-                <span className="text-xl font-bold text-emerald-400">{stats.questionsToday}</span>
+371-              </div>
+372-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+373-                <span className="text-sm text-slate-400">Active Sessions</span>
+374-                <span className="text-xl font-bold text-emerald-400">{stats.activeSessions}</span>
+375-              </div>
+376-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+377-                <span className="text-sm text-slate-400">Avg. Response Time</span>
+378-                <span className="text-xl font-bold text-white">{stats.avgResponseTime}ms</span>
+379-              </div>
+380-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+381-                <span className="text-sm text-slate-400">Total Questions Asked</span>
+382-                <span className="text-xl font-bold text-white">{stats.totalQuestions}</span>
+383-              </div>
+384-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+385-                <span className="text-sm text-slate-400">Unique Students Using AI</span>
+386-                <span className="text-xl font-bold text-white">{stats.uniqueStudents}</span>
+387-              </div>
+388-              <div className="flex justify-between items-center pb-4 border-b border-slate-800/50">
+389-                <span className="text-sm text-slate-400">Most Asked Subject</span>
+390-                <span className="text-lg font-medium text-white truncate max-w-[150px] text-right" title={stats.topSubject}>{stats.topSubject}</span>
+391-              </div>
+392-              <div className="flex justify-between items-center pb-4">
+393-                <span className="text-sm text-slate-400">Most Asked Topic</span>
+394-                <span className="text-lg font-medium text-white truncate max-w-[150px] text-right" title={stats.topTopic}>{stats.topTopic}</span>
+395-              </div>
+396-            </div>
+397-          </div>
+398-        </div>
+399-      </div>
+400-      <div className="mt-8">
+401-        <KnowledgeBaseManager />
+402-      </div>
+403-    </motion.div>
+404-  );
+405-}

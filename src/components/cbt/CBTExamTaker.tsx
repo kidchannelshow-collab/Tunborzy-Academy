@@ -10,7 +10,7 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
   const { profile } = useProfile();
   const [questions, setQuestions] = useState<any[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [flags, setFlags] = useState<Record<string, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -104,7 +104,8 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
       const q = questions[currentIdx];
       if (q && opts.includes(e.key.toLowerCase())) {
         const idx = opts.indexOf(e.key.toLowerCase());
-        if (idx < q.options.length) handleSelectOption(idx);
+        const letter = String.fromCharCode(65 + idx);
+        handleSelectOption(letter);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -133,9 +134,9 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleSelectOption = (idx: number) => {
+  const handleSelectOption = (letter: string) => {
     const q = questions[currentIdx];
-    setAnswers({ ...answers, [q.id]: idx });
+    setAnswers({ ...answers, [q.id]: letter });
   };
 
   const toggleFlag = () => {

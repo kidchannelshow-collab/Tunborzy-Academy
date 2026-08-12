@@ -3,11 +3,14 @@ import AdminDashboardLayout from './admin/AdminDashboardLayout';
 import Overview from './admin/Overview';
 import UserManagement from './admin/UserManagement';
 import LecturerManagement from './admin/LecturerManagement';
-import AcademicManagement from './admin/AcademicManagement';
-import ContentManagement from './admin/ContentManagement';
+import CourseManagement from './admin/CourseManagement';
 import AIManagement from './admin/AIManagement';
+import ConversationManagement from './admin/ConversationManagement';
+import AIFeedbackManagement from './admin/AIFeedbackManagement';
+import AIPerformanceDashboard from './admin/AIPerformanceDashboard';
 import Analytics from './admin/Analytics';
 import SystemSettings from './admin/SystemSettings';
+import PendingReviews from './admin/PendingReviews';
 import AuditLog from './admin/AuditLog';
 
 interface AdminDashboardProps {
@@ -26,14 +29,20 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         return <UserManagement />;
       case 'lecturers':
         return <LecturerManagement />;
-      case 'academic':
-        return <AcademicManagement />;
-      case 'content':
-        return <ContentManagement />;
+      case 'courses':
+        return <CourseManagement />;
       case 'ai':
         return <AIManagement />;
+      case 'conversations':
+        return <ConversationManagement />;
+      case 'feedback':
+        return <AIFeedbackManagement />;
+      case 'ai_performance':
+        return <AIPerformanceDashboard />;
       case 'analytics':
         return <Analytics />;
+      case 'reviews':
+        return <PendingReviews />;
       case 'settings':
         return <SystemSettings />;
       case 'audit':

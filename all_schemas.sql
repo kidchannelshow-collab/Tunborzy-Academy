@@ -415,3 +415,287 @@ CREATE TABLE message_reactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   UNIQUE(message_id, user_id, emoji)
 );
+-- Create knowledge base table
+CREATE TABLE IF NOT EXISTS public.ai_knowledge_base (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    file_name text NOT NULL,
+    file_path text NOT NULL,
+    mime_type text NOT NULL,
+    size integer NOT NULL,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.ai_knowledge_base ENABLE ROW LEVEL SECURITY;
+
+-- Policies for admins
+CREATE POLICY "Admins can manage knowledge base"
+    ON public.ai_knowledge_base
+    FOR ALL
+    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+-- Anyone can read knowledge base
+CREATE POLICY "Anyone can read knowledge base"
+    ON public.ai_knowledge_base
+    FOR SELECT
+    USING (true);
+
+-- Storage bucket for knowledge base
+INSERT INTO storage.buckets (id, name, public) VALUES ('knowledge_base', 'knowledge_base', true) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "Admin can upload KB files"
+    ON storage.objects FOR INSERT TO authenticated
+    WITH CHECK (bucket_id = 'knowledge_base' AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+    
+CREATE POLICY "Admin can update KB files"
+    ON storage.objects FOR UPDATE TO authenticated
+    USING (bucket_id = 'knowledge_base' AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+    
+CREATE POLICY "Admin can delete KB files"
+    ON storage.objects FOR DELETE TO authenticated
+    USING (bucket_id = 'knowledge_base' AND EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+CREATE POLICY "Anyone can read KB files"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'knowledge_base');
+ALTER TABLE public.ai_settings
+ADD COLUMN IF NOT EXISTS daily_limit integer DEFAULT 1000,
+ADD COLUMN IF NOT EXISTS student_limit integer DEFAULT 50,
+ADD COLUMN IF NOT EXISTS block_offensive boolean DEFAULT true,
+ADD COLUMN IF NOT EXISTS academic_only boolean DEFAULT true,
+ADD COLUMN IF NOT EXISTS enable_logging boolean DEFAULT true;
+ALTER TABLE public.ai_conversations 
+ADD COLUMN IF NOT EXISTS messages_count integer DEFAULT 2;
+CREATE TABLE IF NOT EXISTS public.ai_feedback (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
+    message_id text,
+    prompt text,
+    response text,
+    is_helpful boolean,
+    comment text,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.ai_feedback ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert their own feedback"
+    ON public.ai_feedback
+    FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can read their own feedback"
+    ON public.ai_feedback
+    FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all feedback"
+    ON public.ai_feedback
+    FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM public.profiles 
+            WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+        )
+    );
+ALTER TABLE public.ai_conversations ADD COLUMN IF NOT EXISTS status text DEFAULT 'success';
+CREATE TABLE IF NOT EXISTS public.lesson_ai_index (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    lesson_id uuid REFERENCES public.course_lessons(id) ON DELETE CASCADE,
+    subject text,
+    course text,
+    topic text,
+    title text NOT NULL,
+    content text,
+    keywords text,
+    created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.lesson_ai_index ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read lesson_ai_index"
+    ON public.lesson_ai_index
+    FOR SELECT
+    USING (true);
+
+CREATE POLICY "Admins can manage lesson_ai_index"
+    ON public.lesson_ai_index
+    FOR ALL
+    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'lecturer')));
+
+-- Function to handle indexing on insert/update of course_lessons
+CREATE OR REPLACE FUNCTION sync_lesson_ai_index()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_topic text;
+    v_course text;
+    v_subject text;
+BEGIN
+    -- Only index published lessons, optionally. Let's index all, or maybe only published. Let's index all.
+    -- Get topic title (from course_modules)
+    SELECT title, course_id INTO v_topic FROM public.course_modules WHERE id = NEW.module_id;
+    
+    -- Get course title and subject (from courses)
+    SELECT title, department INTO v_course, v_subject FROM public.courses WHERE id = (SELECT course_id FROM public.course_modules WHERE id = NEW.module_id LIMIT 1);
+    
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO public.lesson_ai_index (lesson_id, subject, course, topic, title, content)
+        VALUES (NEW.id, v_subject, v_course, v_topic, NEW.title, NEW.content);
+    ELSIF TG_OP = 'UPDATE' THEN
+        UPDATE public.lesson_ai_index 
+        SET 
+            subject = v_subject,
+            course = v_course,
+            topic = v_topic,
+            title = NEW.title, 
+            content = NEW.content,
+            updated_at = now()
+        WHERE lesson_id = NEW.id;
+        
+        IF NOT FOUND THEN
+            INSERT INTO public.lesson_ai_index (lesson_id, subject, course, topic, title, content)
+            VALUES (NEW.id, v_subject, v_course, v_topic, NEW.title, NEW.content);
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_sync_lesson_ai_index ON public.course_lessons;
+CREATE TRIGGER trigger_sync_lesson_ai_index
+AFTER INSERT OR UPDATE OF title, content, module_id
+ON public.course_lessons
+FOR EACH ROW
+EXECUTE FUNCTION sync_lesson_ai_index();
+
+-- Also handle deletion
+CREATE OR REPLACE FUNCTION delete_lesson_ai_index()
+RETURNS TRIGGER AS $$
+BEGIN
+    DELETE FROM public.lesson_ai_index WHERE lesson_id = OLD.id;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_delete_lesson_ai_index ON public.course_lessons;
+CREATE TRIGGER trigger_delete_lesson_ai_index
+AFTER DELETE ON public.course_lessons
+FOR EACH ROW
+EXECUTE FUNCTION delete_lesson_ai_index();
+
+-- Backfill existing data
+INSERT INTO public.lesson_ai_index (lesson_id, subject, course, topic, title, content)
+SELECT 
+    cl.id as lesson_id, 
+    c.department as subject,
+    c.title as course, 
+    cm.title as topic, 
+    cl.title, 
+    cl.content
+FROM public.course_lessons cl
+LEFT JOIN public.course_modules cm ON cl.module_id = cm.id
+LEFT JOIN public.courses c ON cm.course_id = c.id
+ON CONFLICT DO NOTHING;
+
+CREATE OR REPLACE FUNCTION search_lessons(search_query text)
+RETURNS TABLE (
+  lesson_id uuid,
+  subject text,
+  course text,
+  topic text,
+  title text,
+  content text
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    l.lesson_id, l.subject, l.course, l.topic, l.title, l.content
+  FROM lesson_ai_index l
+  WHERE 
+    l.title ILIKE '%' || search_query || '%' OR 
+    l.content ILIKE '%' || search_query || '%' OR 
+    l.topic ILIKE '%' || search_query || '%'
+  LIMIT 3;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION search_lessons_fts(search_query text)
+RETURNS TABLE (
+  lesson_id uuid,
+  subject text,
+  course text,
+  topic text,
+  title text,
+  content text
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    l.lesson_id, l.subject, l.course, l.topic, l.title, l.content
+  FROM lesson_ai_index l
+  WHERE 
+    to_tsvector('english', coalesce(l.title,'') || ' ' || coalesce(l.content,'') || ' ' || coalesce(l.topic,'') || ' ' || coalesce(l.subject,'') || ' ' || coalesce(l.course,'')) @@ plainto_tsquery('english', search_query)
+  LIMIT 5;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Function to handle indexing on insert/update of materials
+CREATE OR REPLACE FUNCTION sync_material_ai_index()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        INSERT INTO public.lesson_ai_index (lesson_id, subject, course, topic, title, content)
+        VALUES (NEW.id, NEW.subject, NEW.course_code, NEW.topic, NEW.title, NEW.description);
+    ELSIF TG_OP = 'UPDATE' THEN
+        UPDATE public.lesson_ai_index 
+        SET 
+            subject = NEW.subject,
+            course = NEW.course_code,
+            topic = NEW.topic,
+            title = NEW.title, 
+            content = NEW.description,
+            updated_at = now()
+        WHERE lesson_id = NEW.id;
+        
+        IF NOT FOUND THEN
+            INSERT INTO public.lesson_ai_index (lesson_id, subject, course, topic, title, content)
+            VALUES (NEW.id, NEW.subject, NEW.course_code, NEW.topic, NEW.title, NEW.description);
+        END IF;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_sync_material_ai_index ON public.materials;
+CREATE TRIGGER trigger_sync_material_ai_index
+AFTER INSERT OR UPDATE OF title, description, subject, course_code, topic
+ON public.materials
+FOR EACH ROW
+EXECUTE FUNCTION sync_material_ai_index();
+
+-- Also handle deletion
+CREATE OR REPLACE FUNCTION delete_material_ai_index()
+RETURNS TRIGGER AS $$
+BEGIN
+    DELETE FROM public.lesson_ai_index WHERE lesson_id = OLD.id;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_delete_material_ai_index ON public.materials;
+CREATE TRIGGER trigger_delete_material_ai_index
+AFTER DELETE ON public.materials
+FOR EACH ROW
+EXECUTE FUNCTION delete_material_ai_index();
+
+-- Backfill existing data
+INSERT INTO public.lesson_ai_index (lesson_id, subject, course, topic, title, content)
+SELECT 
+    id as lesson_id, 
+    subject,
+    course_code as course, 
+    topic, 
+    title, 
+    description as content
+FROM public.materials
+ON CONFLICT DO NOTHING;

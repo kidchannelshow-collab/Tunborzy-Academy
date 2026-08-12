@@ -1,0 +1,626 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  X, AlertTriangle, Save, Globe, Eye, Plus, GripVertical, Image as ImageIcon, Edit2,
+  Type, AlignLeft, Music, Video, List, Sigma, 
+  BookOpen, Trash2, Link as LinkIcon, Upload, ArrowUp, ArrowDown
+} from 'lucide-react';
+import { supabase } from '../../supabaseClient';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
+import LessonMaterialsManager from './LessonMaterialsManager';
+import StudentLessonViewer from './StudentLessonViewer';
+import LessonPublishingSettings from './LessonPublishingSettings';
+
+export type BlockType = 'title' | 'intro' | 'main' | 'image' | 'audio' | 'video' | 'example' | 'formula' | 'diagram' | 'summary' | 'references';
+
+
+export type MaterialCategory = 'Lecture Notes' | 'Slides' | 'Video Lecture' | 'Audio Lecture' | 'Assignments' | 'Additional Resources';
+
+
+export interface PublishSettings {
+  status: 'Draft' | 'Under Review' | 'Published' | 'Archived' | 'Hidden';
+  publishAt: string | null;
+  unpublishAt: string | null;
+  isLocked: boolean;
+  visibility: 'Public' | 'Undergraduate Only' | 'Selected Departments' | 'Selected Faculties' | 'Selected Levels';
+  isPremium: boolean;
+  auditLogs: { action: string; by: string; date: string }[];
+}
+
+export const defaultPublishSettings: PublishSettings = {
+  status: 'Draft',
+  publishAt: null,
+  unpublishAt: null,
+  isLocked: false,
+  visibility: 'Public',
+  isPremium: false,
+  auditLogs: []
+};
+
+export interface LessonAttachment {
+  id: string;
+  name: string;
+  type: 'pdf' | 'doc' | 'ppt' | 'excel' | 'zip' | 'video' | 'audio' | 'image' | 'link';
+  size?: string;
+  category: MaterialCategory;
+  url: string;
+  uploadedAt: string;
+  uploadedBy?: string;
+}
+
+import { useProfile } from '../../lib/useProfile';
+export interface LessonBlock {
+  id: string;
+  type: BlockType;
+  content: string;
+  fileUrl?: string;
+}
+
+interface LessonEditorProps {
+  courseCode: string;
+  topic: string;
+  portal: string;
+  semester: string;
+  lesson?: any; // Existing lesson if editing
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+const BLOCK_TYPES: { type: BlockType; label: string; icon: any }[] = [
+  { type: 'title', label: 'Lesson Title', icon: Type },
+  { type: 'intro', label: 'Introduction', icon: AlignLeft },
+  { type: 'main', label: 'Main Explanation', icon: AlignLeft },
+  { type: 'example', label: 'Worked Example', icon: List },
+  { type: 'formula', label: 'Formula', icon: Sigma },
+  { type: 'diagram', label: 'Diagram', icon: ImageIcon },
+  { type: 'image', label: 'Image', icon: ImageIcon },
+  { type: 'audio', label: 'Audio', icon: Music },
+  { type: 'video', label: 'Video', icon: Video },
+  { type: 'summary', label: 'Summary', icon: BookOpen },
+  { type: 'references', label: 'References', icon: LinkIcon },
+];
+
+export default function LessonEditor({ courseCode, topic, portal, semester, lesson, onClose, onSaved }: LessonEditorProps) {
+  const [blocks, setBlocks] = useState<LessonBlock[]>([]);
+  const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
+  const [activeTab, setActiveTab] = useState<'content' | 'materials' | 'settings'>('content');
+  const [publishSettings, setPublishSettings] = useState<PublishSettings>(defaultPublishSettings);
+  const { profile } = useProfile();
+  const isTutor = profile?.role === 'Tutor';
+  const isUnderReview = publishSettings?.status === 'Under Review';
+  const [isSaving, setIsSaving] = useState(false);
+  const [status, setStatus] = useState<'draft' | 'published'>('draft');
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  useEffect(() => {
+    if (lesson) {
+      setStatus(lesson.is_published ? 'published' : 'draft');
+      try {
+        if (lesson.description) {
+          const parsed = JSON.parse(lesson.description);
+          if (Array.isArray(parsed)) {
+            setBlocks(parsed);
+            setAttachments([]);
+          } else if (parsed && parsed.blocks) {
+            setBlocks(parsed.blocks || []);
+            setAttachments(parsed.attachments || []);
+            setPublishSettings(parsed.publishSettings || defaultPublishSettings);
+          } else {
+             // legacy plain text fallback
+            setBlocks([{ id: Date.now().toString(), type: 'main', content: lesson.description }]);
+            setAttachments([]);
+          }
+        }
+      } catch (e) {
+        setBlocks([{ id: Date.now().toString(), type: 'main', content: lesson.description || '' }]);
+      }
+    } else {
+      setBlocks([
+        { id: Date.now().toString(), type: 'title', content: 'Untitled Lesson' },
+        { id: (Date.now() + 1).toString(), type: 'intro', content: '' }
+      ]);
+    }
+  }, [lesson]);
+
+  // Autosave Draft
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (blocks.length > 0 && status === 'draft' && lesson) {
+        handleSave(false);
+      }
+    }, 15000); // Autosave every 15s if draft and editing existing
+    return () => clearTimeout(timer);
+  }, [blocks, status, lesson]);
+
+  const handleAddBlock = (type: BlockType) => {
+    const newBlock: LessonBlock = {
+      id: Date.now().toString(),
+      type,
+      content: ''
+    };
+    setBlocks([...blocks, newBlock]);
+    setShowAddMenu(false);
+  };
+
+  const handleUpdateBlock = (id: string, updates: Partial<LessonBlock>) => {
+    setBlocks(blocks.map(b => b.id === id ? { ...b, ...updates } : b));
+  };
+
+  const handleDeleteBlock = (id: string) => {
+    setBlocks(blocks.filter(b => b.id !== id));
+  };
+
+  const moveBlock = (index: number, direction: 'up' | 'down') => {
+    if (direction === 'up' && index > 0) {
+      const newBlocks = [...blocks];
+      [newBlocks[index - 1], newBlocks[index]] = [newBlocks[index], newBlocks[index - 1]];
+      setBlocks(newBlocks);
+    } else if (direction === 'down' && index < blocks.length - 1) {
+      const newBlocks = [...blocks];
+      [newBlocks[index + 1], newBlocks[index]] = [newBlocks[index], newBlocks[index + 1]];
+      setBlocks(newBlocks);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData('blockIndex', index.toString());
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    const dragIndex = parseInt(e.dataTransfer.getData('blockIndex'));
+    if (dragIndex === dropIndex || isNaN(dragIndex)) return;
+    
+    const newBlocks = [...blocks];
+    const [draggedBlock] = newBlocks.splice(dragIndex, 1);
+    newBlocks.splice(dropIndex, 0, draggedBlock);
+    setBlocks(newBlocks);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, blockId: string, bucket: string = 'tonborzy-content') => {
+    const file = e.target.files?.[0];
+    if (!file || !supabase) return;
+    
+    // UI placeholder or loading state could go here
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `lessons/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      handleUpdateBlock(blockId, { fileUrl: data.publicUrl });
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Upload failed');
+    }
+  };
+
+  const extractTitle = () => {
+    const titleBlock = blocks.find(b => b.type === 'title');
+    return titleBlock?.content || 'Untitled Lesson';
+  };
+
+  const handleSave = async (publish: boolean) => {
+    if (!supabase) return;
+    setIsSaving(true);
+    
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const userId = userData?.user?.id;
+      
+      let lecturerName = 'Admin';
+      if (userId) {
+        const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', userId).single();
+        if (profile) lecturerName = profile.full_name;
+      }
+
+      const lessonData = {
+        title: extractTitle(),
+        description: JSON.stringify({ blocks, attachments, publishSettings }),
+        portal,
+        semester,
+        course_code: courseCode,
+        topic,
+        file_type: 'lesson',
+        is_published: publish,
+        lecturer_id: userId,
+        lecturer_name: lecturerName
+      };
+
+      if (lesson) {
+        await supabase.from('materials').update(lessonData).eq('id', lesson.id);
+      } else {
+        await supabase.from('materials').insert([lessonData]);
+      }
+      
+      setStatus(publish ? 'published' : 'draft');
+      if (publish || !lesson) {
+         onSaved();
+      }
+    } catch (error) {
+      console.error('Error saving lesson:', error);
+      alert('Error saving lesson');
+    }
+    setIsSaving(false);
+  };
+
+  const renderRichTextHelp = () => (
+    <div className="text-[10px] text-slate-500 mt-1 flex gap-2">
+      <span>**Bold**</span>
+      <span>*Italic*</span>
+      <span># Heading</span>
+      <span>- List</span>
+      <span>$Math$</span>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[#020617] flex flex-col">
+      {/* Header */}
+      <div className="h-16 border-b border-slate-800 flex items-center justify-between px-6 bg-[#0f172a]">
+        <div className="flex items-center gap-4">
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white rounded-lg transition-colors">
+            <X size={20} />
+          </button>
+          <div className="h-6 w-px bg-slate-800"></div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded uppercase tracking-wider">{courseCode}</span>
+              <span className="text-slate-400 text-sm">/</span>
+              <span className="text-sm font-semibold text-slate-300">{topic}</span>
+            </div>
+            <h2 className="text-lg font-bold text-white leading-tight">Lesson Editor</h2>
+          </div>
+        </div>
+        
+
+
+        <div className="flex items-center gap-3">
+          <div className={`text-xs px-2 py-1 rounded-md font-medium border ${status === 'published' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10' : 'border-amber-500/30 text-amber-400 bg-amber-500/10'}`}>
+            {status.toUpperCase()}
+          </div>
+          <button 
+            onClick={() => setIsPreviewMode(!isPreviewMode)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-sm font-medium"
+          >
+            {isPreviewMode ? <Edit2 size={16} /> : <Eye size={16} />}
+            {isPreviewMode ? 'Edit Mode' : 'Preview'}
+          </button>
+          {!isPreviewMode && (
+            <>
+              {isTutor ? (
+                <>
+                  <button 
+                    onClick={() => handleSave(false)}
+                    disabled={isSaving || isUnderReview}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-sm font-medium"
+                  >
+                    <Save size={16} /> Save Draft
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setPublishSettings(prev => ({
+                        ...prev, 
+                        status: 'Under Review',
+                        auditLogs: [{ action: 'Submitted for Review', by: profile?.full_name || 'Tutor', date: new Date().toISOString() }, ...(prev.auditLogs || [])]
+                      }));
+                      setTimeout(() => handleSave(false), 50); // wait for state
+                    }}
+                    disabled={isSaving || isUnderReview}
+                    className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 transition-colors text-sm font-bold"
+                  >
+                    <Globe size={16} /> Submit for Review
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => handleSave(false)}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors text-sm font-medium"
+                  >
+                    <Save size={16} /> Save Draft
+                  </button>
+                  <button 
+                    onClick={() => handleSave(true)}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-400 text-white transition-colors text-sm font-bold"
+                  >
+                    <Globe size={16} /> Publish Lesson
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Editor Canvas */}
+      <div className="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth custom-scrollbar">
+        {activeTab === 'materials' && (
+          <div className="max-w-3xl mx-auto">
+            <LessonMaterialsManager attachments={attachments} setAttachments={setAttachments} />
+          </div>
+        )}
+        {activeTab === 'settings' && (
+          <div className="max-w-3xl mx-auto">
+            <LessonPublishingSettings publishSettings={publishSettings} setPublishSettings={setPublishSettings} onSave={() => handleSave(status === 'published')} />
+          </div>
+        )}
+        <div className={`max-w-3xl mx-auto space-y-6 ${activeTab !== 'content' ? 'hidden' : ''}`}>
+          <AnimatePresence>
+            {blocks.map((block, index) => (
+              <motion.div 
+                key={block.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                draggable={!isPreviewMode}
+                onDragStart={(e: any) => handleDragStart(e, index)}
+                onDragOver={(e: any) => handleDragOver(e)}
+                onDrop={(e: any) => handleDrop(e, index)}
+                className={`relative group rounded-2xl border ${isPreviewMode ? 'border-transparent' : 'border-slate-800/50 bg-[#0f172a]/50 p-5'} transition-all`}
+              >
+                {/* Drag Handle & Controls */}
+                {!isPreviewMode && (
+                  <div className="absolute -left-12 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+                    <button onClick={() => moveBlock(index, 'up')} className="p-1 text-slate-500 hover:text-white rounded bg-slate-800/50"><ArrowUp size={14} /></button>
+                    <div className="p-1 text-slate-500 cursor-grab active:cursor-grabbing"><GripVertical size={16} /></div>
+                    <button onClick={() => moveBlock(index, 'down')} className="p-1 text-slate-500 hover:text-white rounded bg-slate-800/50"><ArrowDown size={14} /></button>
+                  </div>
+                )}
+                
+                {!isPreviewMode && (
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-400 bg-slate-800/50 px-2 py-1 rounded">
+                      {BLOCK_TYPES.find(t => t.type === block.type)?.icon && React.createElement(BLOCK_TYPES.find(t => t.type === block.type)!.icon, { size: 14 })}
+                      {BLOCK_TYPES.find(t => t.type === block.type)?.label}
+                    </div>
+                    {block.type !== 'title' && (
+                      <button onClick={() => handleDeleteBlock(block.id)} className="text-slate-500 hover:text-rose-400 p-1 rounded-lg transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Block Content Renderers */}
+                {block.type === 'title' && (
+                  isPreviewMode ? (
+                    <h1 className="text-4xl font-display font-bold text-white mb-6">{block.content || 'Untitled Lesson'}</h1>
+                  ) : (
+                    <input 
+                      type="text" 
+                      value={block.content}
+                      onChange={(e) => handleUpdateBlock(block.id, { content: e.target.value })}
+                      placeholder="Lesson Title"
+                      className="w-full bg-transparent border-none text-3xl font-display font-bold text-white focus:ring-0 placeholder:text-slate-600 outline-none"
+                    />
+                  )
+                )}
+
+                {(block.type === 'intro' || block.type === 'main' || block.type === 'example' || block.type === 'summary' || block.type === 'references' || block.type === 'formula') && (
+                  isPreviewMode ? (
+                    <div className="prose prose-invert max-w-none prose-pre:bg-slate-900 prose-pre:border prose-pre:border-slate-800 overflow-x-auto custom-scrollbar">
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                        {block.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div>
+                      <textarea
+                        value={block.content}
+                        onChange={(e) => handleUpdateBlock(block.id, { content: e.target.value })}
+                        placeholder={`Enter ${block.type} content (Markdown supported)...`}
+                        className="w-full bg-[#020617] border border-slate-800 rounded-xl p-4 text-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none min-h-[120px] resize-y custom-scrollbar"
+                      />
+                      {renderRichTextHelp()}
+                    </div>
+                  )
+                )}
+
+                {(block.type === 'image' || block.type === 'diagram') && (
+                  <div className="space-y-3">
+                    {block.fileUrl ? (
+                      <div className="relative group/img rounded-xl overflow-hidden border border-slate-800">
+                        <img src={block.fileUrl} alt="Block content" className="w-full max-h-[500px] object-contain bg-[#020617]" />
+                        {!isPreviewMode && (
+                          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                            <label className="p-2 bg-slate-900/80 backdrop-blur text-white rounded-lg cursor-pointer hover:bg-indigo-500 transition-colors">
+                              <Upload size={16} />
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                            </label>
+                            <button onClick={() => handleUpdateBlock(block.id, { fileUrl: '' })} className="p-2 bg-rose-500/80 backdrop-blur text-white rounded-lg hover:bg-rose-600 transition-colors">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      !isPreviewMode && (
+                        <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-slate-800 border-dashed rounded-xl cursor-pointer bg-[#020617] hover:bg-slate-900 transition-colors">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <ImageIcon className="w-8 h-8 mb-3 text-slate-500" />
+                            <p className="mb-2 text-sm text-slate-400"><span className="font-bold text-indigo-400">Click to upload</span> or drag and drop</p>
+                          </div>
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                        </label>
+                      )
+                    )}
+                    {!isPreviewMode && (
+                      <input 
+                        type="text" 
+                        value={block.content}
+                        onChange={(e) => handleUpdateBlock(block.id, { content: e.target.value })}
+                        placeholder="Caption (optional)"
+                        className="w-full bg-transparent border-none text-sm text-slate-400 text-center focus:ring-0 outline-none"
+                      />
+                    )}
+                    {isPreviewMode && block.content && <p className="text-center text-sm text-slate-500 mt-2">{block.content}</p>}
+                  </div>
+                )}
+
+                {block.type === 'audio' && (
+                  <div className="space-y-3">
+                    {block.fileUrl ? (
+                      <div className="bg-[#020617] p-4 rounded-xl border border-slate-800 flex flex-col gap-3">
+                        <div className="flex items-center gap-4">
+                          <audio controls className="w-full h-10 outline-none" src={block.fileUrl} />
+                          {!isPreviewMode && (
+                            <button onClick={() => handleUpdateBlock(block.id, { fileUrl: '' })} className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors shrink-0">
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                        {!isPreviewMode && (
+                          <input 
+                            type="text" 
+                            value={block.content}
+                            onChange={(e) => handleUpdateBlock(block.id, { content: e.target.value })}
+                            placeholder="Audio title or caption (optional)"
+                            className="w-full bg-transparent border-none text-sm text-slate-400 focus:ring-0 outline-none px-1"
+                          />
+                        )}
+                        {isPreviewMode && block.content && <p className="text-sm text-slate-300">{block.content}</p>}
+                      </div>
+                    ) : (
+                      !isPreviewMode && (
+                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-800 border-dashed rounded-xl cursor-pointer bg-[#020617] hover:bg-slate-900 transition-colors">
+                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                            <Music className="w-8 h-8 mb-3 text-slate-500" />
+                            <p className="text-sm text-slate-400"><span className="font-bold text-indigo-400">Upload audio</span> (.mp3, .wav)</p>
+                          </div>
+                          <input type="file" accept="audio/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                        </label>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {block.type === 'video' && (
+                  <div className="space-y-3">
+                    {block.content && block.content.includes('youtube.com') || block.content.includes('youtu.be') ? (
+                      <div className="aspect-video w-full rounded-xl overflow-hidden border border-slate-800 bg-[#020617]">
+                        <iframe 
+                          width="100%" 
+                          height="100%" 
+                          src={`https://www.youtube.com/embed/${block.content.split('v=')[1]?.split('&')[0] || block.content.split('youtu.be/')[1]}`} 
+                          title="YouTube video player" 
+                          frameBorder="0" 
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                          allowFullScreen
+                        ></iframe>
+                      </div>
+                    ) : block.fileUrl ? (
+                      <div className="flex flex-col gap-3">
+                        <div className="relative group/vid rounded-xl overflow-hidden border border-slate-800">
+                          <video controls className="w-full bg-[#020617] max-h-[500px]" src={block.fileUrl} />
+                          {!isPreviewMode && (
+                            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover/vid:opacity-100 transition-opacity">
+                              <button onClick={() => handleUpdateBlock(block.id, { fileUrl: '' })} className="p-2 bg-rose-500/80 backdrop-blur text-white rounded-lg hover:bg-rose-600 transition-colors">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        {!isPreviewMode && (
+                          <input 
+                            type="text" 
+                            value={block.content}
+                            onChange={(e) => handleUpdateBlock(block.id, { content: e.target.value })}
+                            placeholder="Video caption (optional)"
+                            className="w-full bg-transparent border-none text-sm text-slate-400 text-center focus:ring-0 outline-none"
+                          />
+                        )}
+                        {isPreviewMode && block.content && <p className="text-center text-sm text-slate-500">{block.content}</p>}
+                      </div>
+                    ) : (
+                      !isPreviewMode && (
+                        <div className="flex flex-col gap-3">
+                          <input 
+                            type="text" 
+                            value={block.content}
+                            onChange={(e) => handleUpdateBlock(block.id, { content: e.target.value })}
+                            placeholder="Paste YouTube URL here..."
+                            className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                          />
+                          <div className="flex items-center gap-4">
+                            <div className="h-px bg-slate-800 flex-1"></div>
+                            <span className="text-xs text-slate-500 uppercase font-bold">OR</span>
+                            <div className="h-px bg-slate-800 flex-1"></div>
+                          </div>
+                          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-slate-800 border-dashed rounded-xl cursor-pointer bg-[#020617] hover:bg-slate-900 transition-colors">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                              <Video className="w-8 h-8 mb-3 text-slate-500" />
+                              <p className="text-sm text-slate-400"><span className="font-bold text-indigo-400">Upload video</span> (.mp4)</p>
+                            </div>
+                            <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(e, block.id)} />
+                          </label>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+                
+              </motion.div>
+            ))}
+          </AnimatePresence>
+
+          {/* Add Block Menu */}
+          {!isPreviewMode && (
+            <div className="pt-6 relative">
+              {showAddMenu ? (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-[#0f172a] border border-slate-700 p-2 rounded-2xl shadow-xl w-full"
+                >
+                  <div className="flex justify-between items-center px-3 py-2 mb-2 border-b border-slate-800">
+                    <span className="text-sm font-bold text-slate-300">Add Block</span>
+                    <button onClick={() => setShowAddMenu(false)} className="text-slate-500 hover:text-white"><X size={16} /></button>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                    {BLOCK_TYPES.filter(t => t.type !== 'title').map((type) => (
+                      <button
+                        key={type.type}
+                        onClick={() => handleAddBlock(type.type)}
+                        className="flex flex-col items-center justify-center p-3 rounded-xl bg-[#020617]/50 hover:bg-indigo-500/20 hover:text-indigo-400 border border-transparent hover:border-indigo-500/30 transition-all text-slate-400 gap-2"
+                      >
+                        <type.icon size={20} />
+                        <span className="text-xs font-medium text-center">{type.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="flex justify-center">
+                  <button 
+                    onClick={() => setShowAddMenu(true)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-full bg-slate-800 hover:bg-indigo-500 hover:text-white text-slate-300 border border-slate-700 hover:border-indigo-500 transition-all font-bold shadow-lg shadow-slate-950"
+                  >
+                    <Plus size={18} /> Add Block
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

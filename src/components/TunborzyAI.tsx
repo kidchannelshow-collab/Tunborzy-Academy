@@ -12,6 +12,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useProfile } from '../lib/useProfile';
+import { supabase } from '../supabaseClient';
 
 interface Message {
   id: string;
@@ -63,10 +64,90 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
   const [inputValue, setInputValue] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<Message | null>(null);
+  const [feedbackIsHelpful, setFeedbackIsHelpful] = useState(true);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [submittedFeedbacks, setSubmittedFeedbacks] = useState<Set<string>>(new Set());
+
+  const openFeedback = (msg: Message, isHelpful: boolean) => {
+    setFeedbackMessage(msg);
+    setFeedbackIsHelpful(isHelpful);
+    setFeedbackComment('');
+    setFeedbackModalOpen(true);
+  };
+
+  const submitFeedback = async () => {
+    if (!feedbackMessage || !profile?.id) return;
+    try {
+      const msgIndex = messages.findIndex(m => m.id === feedbackMessage.id);
+      let promptText = '';
+      if (msgIndex > 0 && messages[msgIndex - 1].role === 'user') {
+        promptText = messages[msgIndex - 1].content;
+      }
+      const { error } = await supabase.from('ai_feedback').insert({
+        user_id: profile.id,
+        message_id: feedbackMessage.id,
+        prompt: promptText,
+        response: feedbackMessage.content,
+        is_helpful: feedbackIsHelpful,
+        comment: feedbackComment
+      });
+      if (error) console.error('Failed to submit feedback:', error);
+      else {
+        setSubmittedFeedbacks(prev => new Set(prev).add(feedbackMessage.id));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+    setFeedbackModalOpen(false);
+    setFeedbackMessage(null);
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  const [isAiEnabled, setIsAiEnabled] = useState(true);
+  const [isLoggingEnabled, setIsLoggingEnabled] = useState(true);
+  const [aiWelcomeMessage, setAiWelcomeMessage] = useState("Hello! Welcome to Tunborzy AI. Ask me anything about your studies.");
+
+  useEffect(() => {
+    const fetchAiSettings = async () => {
+      try {
+        const { data, error } = await supabase.from('ai_settings').select('enabled, welcome_message, enable_logging').limit(1).maybeSingle();
+        if (error) {
+          if (error.code !== 'PGRST205') {
+            console.error('Error fetching AI settings:', JSON.stringify(error));
+          }
+        } else if (data) {
+          setIsAiEnabled(data.enabled);
+          if (data.welcome_message) setAiWelcomeMessage(data.welcome_message);
+          if (data.enable_logging !== undefined) setIsLoggingEnabled(data.enable_logging);
+        }
+      } catch (err) {
+        console.error('Failed to fetch AI settings', err);
+      }
+    };
+    fetchAiSettings();
+
+    const channel = supabase.channel('ai_settings_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ai_settings' }, (payload) => {
+        const newSettings = payload.new as any;
+        if (newSettings) {
+          if (newSettings.enabled !== undefined) setIsAiEnabled(newSettings.enabled);
+          if (newSettings.welcome_message) setAiWelcomeMessage(newSettings.welcome_message);
+          if (newSettings.enable_logging !== undefined) setIsLoggingEnabled(newSettings.enable_logging);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -113,7 +194,8 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
           },
           body: JSON.stringify({
             messages: newMessages.slice(-20),
-            userRole: role
+            userRole: role,
+            userId: profile?.id
           })
         });
 
@@ -189,6 +271,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
     const text = typeof customText === 'string' ? customText : inputValue;
     if (!text.trim() || isGenerating) return;
     
+    const startTime = performance.now();
     const newUserMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -215,7 +298,8 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
         },
         body: JSON.stringify({
           messages: newMessages.slice(-20),
-          userRole: role
+            userRole: role,
+            userId: profile?.id
         })
       });
 
@@ -235,16 +319,14 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
         content: '',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isStreaming: true
-      }]);
-
-      if (reader) {
+      }]);      if (reader) {
         let done = false;
         while (!done) {
           const { value, done: readerDone } = await reader.read();
           done = readerDone;
           if (value) {
             const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n'); //\n'); //\n');
+            const lines = chunk.split('\n');
             for (const line of lines) {
               if (line.startsWith('data: ')) {
                 const data = line.slice(6);
@@ -263,7 +345,6 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
                     ));
                   }
                 } catch (e) { /* ignore */
-                  // ignore parse error for incomplete chunks if any
                 }
               }
             }
@@ -275,6 +356,31 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
         m.id === aiMsgId ? { ...m, isStreaming: false } : m
       ));
 
+      const endTime = performance.now();
+      const responseTime = Math.round(endTime - startTime);
+
+      if (profile?.id) {
+        let subject = 'General';
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes('math')) subject = 'Mathematics';
+        else if (lowerText.includes('physics')) subject = 'Physics';
+        else if (lowerText.includes('chemistry')) subject = 'Chemistry';
+        else if (lowerText.includes('biology')) subject = 'Biology';
+        else if (lowerText.includes('english')) subject = 'English';
+        
+        const topic = text.length > 50 ? text.substring(0, 50) + '...' : text;
+
+        supabase.from('ai_conversations').insert({
+          user_id: profile.id,
+          subject,
+          topic,
+          response_time: responseTime,
+          messages_count: newMessages.length + 1
+        }).then(({ error }) => {
+          if (error) console.error('Failed to log conversation:', error);
+        });
+      }
+
     } catch (err) {
       console.error(err);
       setMessages(prev => [...prev, {
@@ -284,6 +390,28 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isStreaming: false
       }]);
+
+      if (profile?.id) {
+        let subject = 'General';
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes('math')) subject = 'Mathematics';
+        else if (lowerText.includes('physics')) subject = 'Physics';
+        else if (lowerText.includes('chemistry')) subject = 'Chemistry';
+        else if (lowerText.includes('biology')) subject = 'Biology';
+        else if (lowerText.includes('english')) subject = 'English';
+        const topic = text.length > 50 ? text.substring(0, 50) + '...' : text;
+        const endTime = performance.now();
+        supabase.from('ai_conversations').insert({
+          user_id: profile.id,
+          subject,
+          topic,
+          response_time: Math.round(endTime - startTime),
+          messages_count: newMessages.length + 1,
+          status: 'failed'
+        }).then(({ error }) => {
+          if (error) console.error('Failed to log failed conversation:', error);
+        });
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -416,6 +544,16 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col relative w-full min-w-0">
+        {!isAiEnabled ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+             <div className="w-20 h-20 rounded-3xl bg-rose-500/10 flex items-center justify-center mb-6 border border-rose-500/20 shadow-2xl shadow-rose-500/10">
+                <Bot size={40} className="text-rose-500 opacity-80" />
+             </div>
+             <h2 className="text-2xl font-bold text-white mb-3">AI Assistant Unavailable</h2>
+             <p className="text-slate-400 max-w-md">The AI Assistant is currently disabled by the administrator. Please check back later.</p>
+          </div>
+        ) : (
+          <>
         {/* Header */}
         <header className="sticky top-0 z-30 bg-[#020617]/80 backdrop-blur-md border-b border-slate-800/50 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -453,8 +591,7 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-display font-bold text-white mb-3">Hello, Student 👋</h1>
                 <p className="text-slate-300 text-lg mb-10 max-w-2xl leading-relaxed">
-                  I'm <span className="font-semibold text-white">TUNBORZY Academic Assistant</span>.<br/>
-                  I'm here to help you study, understand difficult concepts, solve questions, explain notes, prepare for CBT examinations, and improve your academic performance.
+                  {aiWelcomeMessage}
                 </p>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full max-w-4xl">
@@ -519,12 +656,24 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
                           <button className="p-1 text-slate-500 hover:text-white transition-colors" title="Copy">
                             <Copy size={14} />
                           </button>
-                          <button className="p-1 text-slate-500 hover:text-emerald-400 transition-colors" title="Helpful">
+                          
+                          <button 
+                            onClick={() => openFeedback(msg, true)}
+                            disabled={submittedFeedbacks.has(msg.id)}
+                            className={`p-1 transition-colors ${submittedFeedbacks.has(msg.id) ? 'text-emerald-500 opacity-50 cursor-not-allowed' : 'text-slate-500 hover:text-emerald-400'}`} 
+                            title="Helpful"
+                          >
                             <ThumbsUp size={14} />
                           </button>
-                          <button className="p-1 text-slate-500 hover:text-rose-400 transition-colors" title="Not Helpful">
+                          <button 
+                            onClick={() => openFeedback(msg, false)}
+                            disabled={submittedFeedbacks.has(msg.id)}
+                            className={`p-1 transition-colors ${submittedFeedbacks.has(msg.id) ? 'text-rose-500 opacity-50 cursor-not-allowed' : 'text-slate-500 hover:text-rose-400'}`} 
+                            title="Not Helpful"
+                          >
                             <ThumbsDown size={14} />
                           </button>
+  
                           <button className="p-1 text-slate-500 hover:text-indigo-400 transition-colors ml-1" title="Regenerate" onClick={() => handleSendMessage(msg.content)}>
                             <RefreshCw size={14} />
                           </button>
@@ -613,7 +762,65 @@ export default function TunborzyAI({ onBack, role = "student" }: { onBack?: () =
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {feedbackModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#0f172a] border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setFeedbackModalOpen(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+              
+              <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+                {feedbackIsHelpful ? (
+                  <><ThumbsUp className="text-emerald-400" /> Helpful Response</>
+                ) : (
+                  <><ThumbsDown className="text-rose-400" /> Not Helpful</>
+                )}
+              </h2>
+              <p className="text-sm text-slate-400 mb-6">
+                Tell us why this response was {feedbackIsHelpful ? 'helpful' : 'not helpful'} (optional).
+              </p>
+              
+              <textarea
+                value={feedbackComment}
+                onChange={(e) => setFeedbackComment(e.target.value)}
+                placeholder="Add a comment..."
+                rows={4}
+                className="w-full bg-[#020617] border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 resize-none mb-6"
+              />
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setFeedbackModalOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-300 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={submitFeedback}
+                  className="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-bold rounded-xl transition-colors"
+                >
+                  Submit Feedback
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }

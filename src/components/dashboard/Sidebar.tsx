@@ -22,7 +22,7 @@ export default function Sidebar({ isOpen, setIsOpen, onLogout, currentView = 'da
     { icon: MessageCircle, label: 'Course Chats', id: 'chats' },
     { icon: PenTool, label: 'CBT Practice', id: 'cbt' },
     { icon: FileText, label: 'Past Questions', id: 'past-questions' },
-    { icon: Library, label: 'Resource Library', id: 'resources' },
+    { icon: Library, label: 'Academic Materials', id: 'academic-materials' },
     { icon: RefreshCcw, label: 'Revision Mode', id: 'revision' },
     { icon: BarChart2, label: 'Performance Analytics', id: 'analytics' },
     { icon: Bot, label: 'AI Study Assistant', id: 'ai' },

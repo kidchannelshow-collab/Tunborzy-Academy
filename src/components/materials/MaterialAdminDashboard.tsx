@@ -167,8 +167,19 @@ export default function MaterialAdminDashboard() {
       
       if (error) throw error;
       
-      if (data) {
+      if (data && data.length > 0) {
         setMaterials([data[0], ...materials]);
+        
+        // Asynchronously trigger the AI Indexing pipeline
+        fetch('/api/index-lesson', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lessonId: data[0].id,
+            title: data[0].title,
+            rawText: data[0].description
+          })
+        }).catch(err => console.error('Failed to trigger AI indexing:', err));
       }
       
       // Reset
