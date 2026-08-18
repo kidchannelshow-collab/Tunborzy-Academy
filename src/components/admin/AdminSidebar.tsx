@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Users, UserCog, BookOpen, Database, Bot, LineChart, Settings, MessageSquare, 
-  History, LogOut, X, ChevronRight, Star, Activity, FileCheck, FileText, Building2, GraduationCap
+  History, LogOut, X, ChevronRight, Star, Activity, FileCheck, FileText, Building2, GraduationCap, Tag
 } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -27,6 +27,7 @@ export default function AdminSidebar({ isOpen, setIsOpen, onLogout, currentView,
     { icon: Activity, label: 'AI Performance', id: 'ai_performance' },
     { icon: LineChart, label: 'Analytics', id: 'analytics' },
     { icon: GraduationCap, label: 'Undergraduate Performance', id: 'ug_performance' },
+    { icon: Tag, label: 'Partnership Management', id: 'partnerships' },
     { icon: Settings, label: 'System Settings', id: 'settings' },
     { icon: History, label: 'Audit Log', id: 'audit' },
   ];

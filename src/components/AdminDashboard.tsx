@@ -12,6 +12,7 @@ import AIFeedbackManagement from './admin/AIFeedbackManagement';
 import AIPerformanceDashboard from './admin/AIPerformanceDashboard';
 import Analytics from './admin/Analytics';
 import AdminUndergraduatePerformance from './admin/AdminUndergraduatePerformance';
+import PartnershipManagement from './admin/PartnershipManagement';
 import SystemSettings from './admin/SystemSettings';
 import PendingReviews from './admin/PendingReviews';
 import AuditLog from './admin/AuditLog';
@@ -50,6 +51,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         return <Analytics />;
       case 'ug_performance':
         return <AdminUndergraduatePerformance />;
+      case 'partnerships':
+        return <PartnershipManagement />;
       case 'reviews':
         return <PendingReviews />;
       case 'settings':

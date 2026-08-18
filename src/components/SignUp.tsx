@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, Circle, ChevronDown, Search, Building, BookOpen, Shield, Key } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, CheckCircle2, Circle, ChevronDown, Search, Building, BookOpen, Shield, Key, Tag } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { refreshProfile } from '../lib/useProfile';
 
@@ -32,6 +32,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
   const [portal, setPortal] = useState('');
   const [accountType, setAccountType] = useState('');
   const [accessCode, setAccessCode] = useState('');
+  const [invitationCode, setInvitationCode] = useState('');
   
   const [university, setUniversity] = useState('');
   const [course, setCourse] = useState('');
@@ -255,6 +256,20 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
 
       const userId = currentUser.id;
       
+      let referredByPartnerId = null;
+      if (invitationCode.trim()) {
+        const { data: partnerData, error: partnerErr } = await supabase
+          .from('partners')
+          .select('id')
+          .eq('referral_code', invitationCode.trim().toUpperCase())
+          .maybeSingle();
+
+        if (partnerErr || !partnerData) {
+          throw new Error(`Invalid invitation code "${invitationCode}". Please check the code or leave it blank.`);
+        }
+        referredByPartnerId = partnerData.id;
+      }
+      
       const profilePayload = {
         id: userId,
         full_name: name,
@@ -264,6 +279,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         university: role === 'Student' ? university : null,
         course: role === 'Student' ? course : null,
         student_id: studentId,
+        referred_by_partner_id: referredByPartnerId,
         created_at: new Date().toISOString()
       };
       
@@ -713,6 +729,24 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
                       </motion.div>
                     )}
                   </AnimatePresence>
+
+                  <div className="pt-3">
+                    <label className="block text-sm font-poppins font-medium text-slate-400 mb-1.5">
+                      Invitation Code (Optional)
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Tag className="h-5 w-5 text-slate-500" />
+                      </div>
+                      <input
+                        type="text"
+                        value={invitationCode}
+                        onChange={(e) => setInvitationCode(e.target.value.toUpperCase())}
+                        className="block w-full pl-11 pr-4 py-3.5 border border-slate-700 rounded-xl leading-5 bg-[#020617]/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 sm:text-sm transition-all font-body font-normal uppercase font-mono"
+                        placeholder="e.g. EMMA20"
+                      />
+                    </div>
+                  </div>
 
                   <div className="pt-4">
                     <label className="flex items-center gap-3 cursor-pointer group">

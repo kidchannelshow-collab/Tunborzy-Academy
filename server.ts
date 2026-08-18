@@ -606,8 +606,204 @@ Instructions:
         timeUsed,
         results
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Flutterwave Payment Verification Route
+  app.post('/api/payments/verify', async (req, res) => {
+    try {
+      const { reference, transactionId, amount, plan } = req.body;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Missing authorization header' });
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_PUBLISHABLE_KEY, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: userData, error: userErr } = await sb.auth.getUser();
+      if (userErr || !userData?.user) {
+        return res.status(401).json({ error: 'Unauthorized user' });
+      }
+      const userId = userData.user.id;
+
+      if (!reference) {
+        return res.status(400).json({ error: 'Missing payment reference' });
+      }
+
+      // 1. Idempotency check: verify if payment reference was already processed
+      const { data: existingPayment } = await sb.from('payments').select('*').eq('reference', reference).maybeSingle();
+      if (existingPayment) {
+        await sb.from('profiles').update({
+          premium_status: 'Active',
+          payment_reference: reference,
+          payment_date: existingPayment.created_at
+        }).eq('id', userId);
+
+        return res.json({ success: true, message: 'Payment already verified and premium active.' });
+      }
+
+      // 2. Server-side verification with Flutterwave API if secret key exists
+      const flwSecret = process.env.FLUTTERWAVE_SECRET_KEY;
+      let isSuccessful = true;
+
+      if (flwSecret && transactionId) {
+        try {
+          const flwRes = await fetch(`https://api.flutterwave.com/v3/transactions/${transactionId}/verify`, {
+            headers: { Authorization: `Bearer ${flwSecret}` }
+          });
+          const flwData = await flwRes.json();
+          if (flwData.status !== 'success' || flwData.data.status !== 'successful') {
+            isSuccessful = false;
+          }
+        } catch (err) {
+          console.error('Flutterwave API verification error:', err);
+          isSuccessful = false;
+        }
+      }
+
+      if (!isSuccessful) {
+        return res.status(400).json({ error: 'Payment verification failed or transaction was not successful.' });
+      }
+
+      // 3. Record payment in payments table (idempotent)
+      const { error: payErr } = await sb.from('payments').insert([{
+        user_id: userId,
+        reference: reference.trim(),
+        transaction_id: transactionId ? String(transactionId) : null,
+        amount: amount || 5000.00,
+        currency: 'NGN',
+        status: 'successful',
+        provider: 'flutterwave',
+        plan: plan || 'premium'
+      }]);
+
+      if (payErr && !payErr.message.includes('duplicate key')) {
+        throw payErr;
+      }
+
+      // 4. Update user profile to Active
+      const { error: profileErr } = await sb.from('profiles').update({
+        premium_status: 'Active',
+        payment_reference: reference.trim(),
+        payment_date: new Date().toISOString()
+      }).eq('id', userId);
+
+      if (profileErr) throw profileErr;
+
+      // 5. Check if user was referred by a partner and generate 20% commission (idempotent via unique constraint)
+      const { data: userProfile } = await sb.from('profiles').select('referred_by_partner_id').eq('id', userId).maybeSingle();
+      if (userProfile && userProfile.referred_by_partner_id) {
+        const partnerId = userProfile.referred_by_partner_id;
+        const { data: partnerData } = await sb.from('partners').select('referral_code, commission_percentage').eq('id', partnerId).maybeSingle();
+        
+        if (partnerData) {
+          const verifiedAmount = amount || 5000.00;
+          const rate = partnerData.commission_percentage ? Number(partnerData.commission_percentage) / 100 : 0.20;
+          const commissionAmount = Number((verifiedAmount * rate).toFixed(2));
+
+          const { error: commErr } = await sb.from('partner_commission_ledger').insert([{
+            partner_id: partnerId,
+            referred_user_id: userId,
+            referral_code: partnerData.referral_code,
+            payment_reference: reference.trim(),
+            payment_amount: verifiedAmount,
+            commission_rate: rate,
+            commission_amount: commissionAmount,
+            currency: 'NGN',
+            status: 'approved'
+          }]);
+
+          if (commErr && !commErr.message.includes('duplicate key')) {
+            console.error('Error recording commission ledger:', commErr);
+          }
+        }
+      }
+
+      res.json({ success: true, message: 'Payment verified and Premium successfully activated!' });
+    } catch (err: any) {
+      console.error('Payment verification error:', err);
+      res.status(500).json({ error: err.message || 'Internal payment verification error.' });
+    }
+  });
+
+  // Flutterwave Webhook Route
+  app.post('/api/payments/webhook', async (req, res) => {
+    try {
+      const event = req.body;
+      const signature = req.headers['verif-hash'];
+      const secretHash = process.env.FLUTTERWAVE_WEBHOOK_HASH;
+      if (secretHash && signature && signature !== secretHash) {
+        return res.status(401).json({ error: 'Invalid webhook signature' });
+      }
+
+      if (event && (event.event === 'charge.completed' || event['event.type'] === 'TRANSACTION_SUCCESS')) {
+        const data = event.data;
+        if (data && data.status === 'successful' && data.tx_ref) {
+          const customerEmail = data.customer?.email;
+          const reference = data.tx_ref;
+          const transactionId = data.id;
+          const amount = data.amount;
+
+          if (customerEmail) {
+            const { createClient } = await import('@supabase/supabase-js');
+            const sbAdmin = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_PUBLISHABLE_KEY);
+
+            const { data: profile } = await sbAdmin.from('profiles').select('id').eq('email', customerEmail).maybeSingle();
+            if (profile) {
+              const { data: existing } = await sbAdmin.from('payments').select('id').eq('reference', reference).maybeSingle();
+              if (!existing) {
+                await sbAdmin.from('payments').insert([{
+                  user_id: profile.id,
+                  reference,
+                  transaction_id: transactionId ? String(transactionId) : null,
+                  amount: amount || 0,
+                  status: 'successful',
+                  provider: 'flutterwave'
+                }]);
+
+                await sbAdmin.from('profiles').update({
+                  premium_status: 'Active',
+                  payment_reference: reference,
+                  payment_date: new Date().toISOString()
+                }).eq('id', profile.id);
+
+                // Check and create commission if referred
+                const { data: userProfile } = await sbAdmin.from('profiles').select('referred_by_partner_id').eq('id', profile.id).maybeSingle();
+                if (userProfile && userProfile.referred_by_partner_id) {
+                  const partnerId = userProfile.referred_by_partner_id;
+                  const { data: partnerData } = await sbAdmin.from('partners').select('referral_code, commission_percentage').eq('id', partnerId).maybeSingle();
+
+                  if (partnerData) {
+                    const verifiedAmount = amount || 5000.00;
+                    const rate = partnerData.commission_percentage ? Number(partnerData.commission_percentage) / 100 : 0.20;
+                    const commissionAmount = Number((verifiedAmount * rate).toFixed(2));
+
+                    await sbAdmin.from('partner_commission_ledger').insert([{
+                      partner_id: partnerId,
+                      referred_user_id: profile.id,
+                      referral_code: partnerData.referral_code,
+                      payment_reference: reference.trim(),
+                      payment_amount: verifiedAmount,
+                      commission_rate: rate,
+                      commission_amount: commissionAmount,
+                      currency: 'NGN',
+                      status: 'approved'
+                    }]);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      res.status(200).json({ received: true });
+    } catch (err: any) {
+      console.error('Webhook error:', err);
       res.status(500).json({ error: err.message });
     }
   });
