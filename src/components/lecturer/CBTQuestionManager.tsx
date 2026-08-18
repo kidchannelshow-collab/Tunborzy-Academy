@@ -12,6 +12,8 @@ interface Question {
   option_d: string;
   correct_option: string;
   marks: number;
+  topic?: string;
+  difficulty?: string;
 }
 
 interface Props {

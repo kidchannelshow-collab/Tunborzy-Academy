@@ -18,53 +18,35 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
   const [showConfirmSubmit, setShowConfirmSubmit] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showCalculator, setShowCalculator] = useState(customConfig?.calculator || false);
+  const [actualAttemptId, setActualAttemptId] = useState<string>(attemptId);
 
   useEffect(() => {
     async function loadExam() {
-      // Determine time
-      let duration = 30 * 60; // 30 mins default
-      if (customConfig) {
+      let duration = 30 * 60;
+      if (customConfig && customConfig.time) {
         duration = customConfig.time * 60;
       }
-
       try {
-        if (customConfig) {
-          let query = supabase.from('cbt_questions').select('*');
-          if (customConfig.subjects && customConfig.subjects.length > 0) {
-             const { data: exams } = await supabase.from('cbt_exams').select('id').in('course_id', customConfig.subjects);
-             if (exams && exams.length > 0) {
-               const examIds = exams.map((e: any) => e.id);
-               query = query.in('exam_id', examIds);
-             } else {
-               setQuestions([]);
-               setTimeLeft(duration);
-               setLoading(false);
-               return;
-             }
-          }
-          const { data, error } = await query.limit(customConfig.count * 2);
-          if (data && data.length > 0) { 
-             const shuffled = [...data].sort(() => 0.5 - Math.random());
-             setQuestions(shuffled.slice(0, customConfig.count));
-          } else { 
-             setQuestions([]);
-          }
-          setTimeLeft(duration);
-        } else {
-          // Fetch from DB
-          const { data: examData } = await supabase.from('cbt_exams').select('duration_minutes').eq('id', examId).single();
-          if (examData?.duration_minutes) {
-            duration = examData.duration_minutes * 60;
-          }
-          const { data: qData, error } = await supabase.from('cbt_questions').select('*').eq('exam_id', examId);
-          if (error) throw error;
-          
-          if (qData && qData.length > 0) {
-            setQuestions(qData);
-          } else {
-            setQuestions([]);
-          }
-          setTimeLeft(duration);
+        const session = (await supabase.auth.getSession()).data.session;
+        const token = session?.access_token;
+        
+        if (customConfig && customConfig.backendDrill) {
+          const res = await fetch('/api/cbt/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify(customConfig)
+          });
+          const data = await res.json();
+          if (data.questions) setQuestions(data.questions);
+          if (data.attemptId) setActualAttemptId(data.attemptId);
+          setTimeLeft(customConfig.time * 60);
+        } else if (examId) {
+          const res = await fetch(`/api/cbt/exam/${examId}`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+          });
+          const data = await res.json();
+          if (data.questions) setQuestions(data.questions);
+          if (data.duration) setTimeLeft(data.duration);
         }
       } catch (err) {
         console.error(err);
@@ -146,57 +128,34 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
 
   const submitExam = async () => {
     setSubmitting(true);
-     
-    let totalCorrect = 0;
-    
-    questions.forEach(q => {
-      if (answers[q.id] === q.correct_option) {
-        totalCorrect++;
-      }
-    });
-    
-    const score = Math.round((totalCorrect / questions.length) * 100);
-
     try {
-      if (attemptId !== 'custom-attempt-id') {
-        if (profile) await notificationService.notifyUser({
+      const session = (await supabase.auth.getSession()).data.session;
+      const token = session?.access_token;
+      
+      const res = await fetch('/api/cbt/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ attemptId: actualAttemptId, answers })
+      });
+      const data = await res.json();
+      
+      if (profile && actualAttemptId !== 'custom-attempt-id') {
+        await notificationService.notifyUser({
           userId: profile?.id,
-          title: `CBT Completed`,
-          message: `You have completed the assessment. Score: ${score}%`,
+          title: 'CBT Completed',
+          message: `You have completed the assessment. Score: ${data.score}%`,
           type: 'result',
           link: '/cbt'
         });
-        await supabase.from('cbt_attempts').update({
-          end_time: new Date().toISOString(),
-          status: 'completed',
-          score,
-          total_correct: totalCorrect,
-          total_wrong: Object.keys(answers).length - totalCorrect,
-          total_unanswered: questions.length - Object.keys(answers).length
-        }).eq('id', attemptId);
-        
-        // Optionally insert answers
-      } else {
-        // Local storage for custom attempt
-        const customResult = {
-          id: attemptId,
-          score,
-          total_correct: totalCorrect,
-          total_wrong: Object.keys(answers).length - totalCorrect,
-          total_unanswered: questions.length - Object.keys(answers).length,
-          time_spent: (customConfig ? customConfig.time * 60 : 1800) - timeLeft,
-          created_at: new Date().toISOString(),
-          questions,
-          answers,
-          customConfig
-        };
-        localStorage.setItem(`cbt_custom_${attemptId}`, JSON.stringify(customResult));
       }
+      
+      // Store result in local storage for the result view to pick up
+      localStorage.setItem(`cbt_result_${actualAttemptId}`, JSON.stringify(data));
+      
     } catch (e) {
       console.error(e);
     }
-    
-    onFinish(attemptId);
+    onFinish(actualAttemptId);
   };
 
   if (loading) {
@@ -296,18 +255,20 @@ export default function CBTExamTaker({ examId, attemptId, onFinish, onCancel, cu
                 )}
                 
                 <div className="space-y-3">
-                  {q.options.map((opt: string, idx: number) => {
-                    const isSelected = answers[q.id] === idx;
+                  {[ {letter: 'A', text: q.option_a}, {letter: 'B', text: q.option_b}, {letter: 'C', text: q.option_c}, {letter: 'D', text: q.option_d} ].filter(o => o.text).map((opt) => {
+                    const isSelected = answers[q.id] === opt.letter;
                     return (
                       <button
-                        key={idx}
-                        onClick={() => handleSelectOption(idx)}
+                        key={opt.letter}
+                        onClick={() => handleSelectOption(opt.letter)}
                         className={`w-full text-left p-4 md:p-5 rounded-xl border-2 transition-all flex items-center gap-4 ${isSelected ? 'border-amber-500 bg-amber-500/10 shadow-lg shadow-amber-500/10' : 'border-slate-800 bg-slate-900/50 hover:border-slate-600 hover:bg-slate-800 text-slate-300'}`}
                       >
                         <div className={`w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex items-center justify-center font-action font-bold text-sm border-2 transition-colors ${isSelected ? 'bg-amber-500 border-amber-500 text-slate-950' : 'border-slate-600 text-slate-400'}`}>
-                          {String.fromCharCode(65 + idx)}
+                          {opt.letter}
                         </div>
-                        <span className={`font-body text-base md:text-lg ${isSelected ? 'text-white' : ''}`}>{opt}</span>
+                        <div className={`flex-1 text-sm md:text-base leading-relaxed ${isSelected ? 'text-white font-medium' : ''}`}>
+                          {opt.text}
+                        </div>
                       </button>
                     );
                   })}

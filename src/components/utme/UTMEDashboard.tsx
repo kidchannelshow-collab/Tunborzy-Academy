@@ -1,0 +1,272 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { BookOpen, Clock, Award, CheckCircle2, Play, FileText, ChevronRight, History, ArrowLeft, RefreshCw, BarChart2 } from 'lucide-react';
+import { supabase } from '../../supabaseClient';
+import { useProfile } from '../../lib/useProfile';
+
+interface UTMEDashboardProps {
+  onStartExam: (config: any) => void;
+  onViewHistory: () => void;
+}
+
+export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashboardProps) {
+  const { profile } = useProfile();
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [topics, setTopics] = useState<any[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [selectedSubject, setSelectedSubject] = useState<any | null>(null);
+  const [selectedMode, setSelectedMode] = useState<'full' | 'topic' | 'random'>('full');
+  const [selectedTopicId, setSelectedTopicId] = useState<string>('');
+  const [questionCount, setQuestionCount] = useState(25);
+  const [durationMinutes, setDurationMinutes] = useState(30);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Fetch subjects that have published questions or all active
+      const { data: subData } = await supabase
+        .from('utme_subjects')
+        .select('*')
+        .eq('is_active', true);
+      
+      setSubjects(subData || []);
+
+      // Fetch history for student
+      if (profile) {
+        const { data: histData } = await supabase
+          .from('utme_attempts')
+          .select('*, utme_subjects(name)')
+          .eq('student_id', profile.id)
+          .order('created_at', { ascending: false });
+        
+        setHistory(histData || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSubject = async (sub: any) => {
+    setSelectedSubject(sub);
+    setSelectedTopicId('');
+    // Fetch topics for this subject
+    const { data } = await supabase
+      .from('utme_topics')
+      .select('*')
+      .eq('subject_id', sub.id);
+    
+    setTopics(data || []);
+  };
+
+  const handleStart = () => {
+    if (!selectedSubject) return;
+    onStartExam({
+      subjectId: selectedSubject.id,
+      subjectName: selectedSubject.name,
+      mode: selectedMode,
+      topicId: selectedTopicId,
+      count: questionCount,
+      time: durationMinutes
+    });
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto py-8 px-4 space-y-8">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-900/40 via-teal-900/20 to-slate-900 border border-emerald-500/20 p-8 rounded-3xl backdrop-blur-md">
+        <div>
+          <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full">
+            UTME CBT Center
+          </span>
+          <h1 className="text-3xl font-display font-bold text-white mt-2">JAMB UTME Preparation</h1>
+          <p className="text-slate-400 mt-1">Practice with authentic questions across core UTME subjects under timed conditions.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl flex items-center gap-3">
+            <Award className="text-emerald-400" size={28} />
+            <div>
+              <div className="text-xs text-slate-400">Total Attempts</div>
+              <div className="text-xl font-bold text-white">{history.length}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {!selectedSubject ? (
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <BookOpen className="text-emerald-400" size={24} /> Select a UTME Subject
+          </h2>
+
+          {loading ? (
+            <div className="flex justify-center py-16"><div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full"></div></div>
+          ) : subjects.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {subjects.map(sub => (
+                <motion.div
+                  key={sub.id}
+                  whileHover={{ y: -4, scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  onClick={() => handleSelectSubject(sub)}
+                  className="bg-[#0f172a] border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-6 cursor-pointer group transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold mb-4 group-hover:bg-emerald-500 group-hover:text-slate-950 transition-colors">
+                      {sub.code}
+                    </div>
+                    <h3 className="text-xl font-bold text-white group-hover:text-emerald-400 transition-colors">{sub.name}</h3>
+                    <p className="text-sm text-slate-400 mt-2 line-clamp-2">{sub.description || 'Comprehensive UTME questions and practice exams.'}</p>
+                  </div>
+                  <div className="mt-6 pt-4 border-t border-slate-800/60 flex items-center justify-between text-sm text-emerald-400 font-medium">
+                    <span>Start Practice</span>
+                    <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-[#0f172a] border border-slate-800 rounded-3xl">
+              <p className="text-slate-400">No UTME subjects are currently available.</p>
+            </div>
+          )}
+
+          {/* Recent History Preview */}
+          {history.length > 0 && (
+            <div className="mt-12 space-y-4">
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                <History className="text-emerald-400" size={20} /> Recent Practice History
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {history.slice(0, 3).map(h => (
+                  <div key={h.id} className="bg-[#0f172a] border border-slate-800 rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-bold text-white">{h.utme_subjects?.name || 'UTME Drill'}</div>
+                      <div className="text-xs text-slate-400">{new Date(h.created_at).toLocaleDateString()}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-emerald-400">{h.score}%</div>
+                      <div className="text-xs text-slate-500">{h.total_correct}/{h.total_correct + h.total_wrong} Correct</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setSelectedSubject(null)}
+              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors"
+            >
+              <ArrowLeft size={20} />
+            </button>
+            <div>
+              <span className="text-xs text-emerald-400 font-bold uppercase tracking-wider">{selectedSubject.code}</span>
+              <h2 className="text-2xl font-bold text-white">{selectedSubject.name} — Configuration</h2>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="bg-[#0f172a] border border-slate-800 rounded-3xl p-6 space-y-6">
+                <h3 className="text-lg font-bold text-white">Select Practice Mode</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[
+                    { id: 'full', label: 'Full Subject Drill', desc: 'Random questions across all topics' },
+                    { id: 'topic', label: 'Topic Drill', desc: 'Focus on a specific topic' },
+                    { id: 'random', label: 'Random Practice', desc: 'Mixed difficulty rapid-fire' }
+                  ].map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => setSelectedMode(m.id as any)}
+                      className={`p-4 rounded-2xl border text-left transition-all ${
+                        selectedMode === m.id 
+                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-300' 
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800'
+                      }`}
+                    >
+                      <div className="font-bold text-white mb-1">{m.label}</div>
+                      <div className="text-xs text-slate-400">{m.desc}</div>
+                    </button>
+                  ))}
+                </div>
+
+                {selectedMode === 'topic' && (
+                  <div className="space-y-3 pt-4 border-t border-slate-800">
+                    <label className="text-sm font-medium text-slate-300">Choose Topic</label>
+                    {topics.length > 0 ? (
+                      <select
+                        value={selectedTopicId}
+                        onChange={(e) => setSelectedTopicId(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="">Select a topic...</option>
+                        {topics.map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-sm text-amber-400">No topics available for this subject yet. Defaulting to full drill.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-[#0f172a] border border-slate-800 rounded-3xl p-6 space-y-6 sticky top-24">
+                <h3 className="text-lg font-bold text-white">Drill Parameters</h3>
+
+                <div>
+                  <label className="flex justify-between text-sm text-slate-400 mb-2">
+                    <span>Question Count</span>
+                    <span className="text-white font-bold">{questionCount} Qs</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="10" max="60" step="5"
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(parseInt(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="flex justify-between text-sm text-slate-400 mb-2">
+                    <span>Duration</span>
+                    <span className="text-white font-bold">{durationMinutes} Mins</span>
+                  </label>
+                  <input
+                    type="range"
+                    min="10" max="90" step="5"
+                    value={durationMinutes}
+                    onChange={(e) => setDurationMinutes(parseInt(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                </div>
+
+                <button
+                  onClick={handleStart}
+                  disabled={selectedMode === 'topic' && topics.length > 0 && !selectedTopicId}
+                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
+                >
+                  <Play size={20} /> Start UTME Exam
+                </button>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </div>
+  );
+}

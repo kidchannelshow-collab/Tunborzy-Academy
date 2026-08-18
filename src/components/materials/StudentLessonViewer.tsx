@@ -3,7 +3,7 @@ import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, BookOpen, CheckCircle, Bookmark, Share2, 
   ChevronLeft, ChevronRight, Check, Copy, Maximize,
-  List, X, Play, Music, Lock
+  List, X, Play, Music, Lock, Award
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -11,6 +11,8 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { supabase } from '../../supabaseClient';
+import CBTExamTaker from '../cbt/CBTExamTaker';
+import CBTResultView from '../cbt/CBTResultView';
 
 interface StudentLessonViewerProps {
   material: any;
@@ -28,8 +30,12 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
   const [isCompleted, setIsCompleted] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [launchingCbt, setLaunchingCbt] = useState(false);
+  const [cbtModalOpen, setCbtModalOpen] = useState(false);
+  const [topicQuestionsCount, setTopicQuestionsCount] = useState<number | null>(null);
+  const [cbtView, setCbtView] = useState<'exam' | 'result'>('exam');
+  const [cbtAttemptId, setCbtAttemptId] = useState<string | null>(null);
 
   // Scroll Progress
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,6 +85,13 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
         .eq('is_published', true)
         .order('created_at', { ascending: true });
       if (sibs) setSiblings(sibs);
+
+      // Check available CBT questions for this topic
+      const { count } = await supabase
+        .from('cbt_questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('course_code', material.course_code);
+      setTopicQuestionsCount(count || 0);
     } catch (e) {
       console.error(e);
     }
@@ -384,6 +397,33 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
             </div>
           )}
 
+          {/* Ready to Practice Recommendation Card */}
+          <div className="mt-16 p-8 rounded-3xl bg-gradient-to-br from-indigo-950/40 via-slate-900 to-slate-900 border border-indigo-500/20 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="space-y-2 text-center sm:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-bold uppercase tracking-wider">
+                <Award size={14} /> CBT Practice Assessment
+              </div>
+              <h4 className="text-xl font-bold text-white">Ready to practice {material.topic}?</h4>
+              <p className="text-slate-400 text-sm">
+                Test your understanding of this topic with interactive practice questions for {material.course_code}.
+              </p>
+            </div>
+            <div>
+              {topicQuestionsCount !== null && topicQuestionsCount > 0 ? (
+                <button
+                  onClick={() => setCbtModalOpen(true)}
+                  className="px-6 py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2 whitespace-nowrap"
+                >
+                  Start CBT Drill
+                </button>
+              ) : (
+                <p className="text-sm font-medium text-amber-400/90 bg-amber-500/10 px-4 py-3 rounded-xl border border-amber-500/20 text-center">
+                  No CBT questions are available for this topic yet.
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Lesson Completion & Actions */}
           <div className="mt-24 pt-12 border-t border-slate-800">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
@@ -441,6 +481,67 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
               alt="Expanded view" 
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
             />
+          </motion.div>
+        )}
+
+        {cbtModalOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] bg-black/95 backdrop-blur flex flex-col p-4 sm:p-8"
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div>
+                <h3 className="text-xl font-bold text-white">CBT Drill: {material.course_code} - {material.topic}</h3>
+                <p className="text-sm text-slate-400">Interactive topic-based assessment</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setCbtModalOpen(false);
+                  setCbtView('exam');
+                  setCbtAttemptId(null);
+                }}
+                className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-full transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto pt-6">
+              {cbtView === 'exam' ? (
+                <CBTExamTaker 
+                  examId="custom-exam-id"
+                  attemptId="custom-attempt-id"
+                  customConfig={{
+                    backendDrill: true,
+                    courseCode: material.course_code,
+                    topics: [material.topic],
+                    count: 10,
+                    timed: true,
+                    time: 15
+                  }}
+                  onFinish={(attemptId: string) => {
+                    setCbtAttemptId(attemptId);
+                    setCbtView('result');
+                  }}
+                  onCancel={() => {
+                    setCbtModalOpen(false);
+                    setCbtView('exam');
+                    setCbtAttemptId(null);
+                  }}
+                />
+              ) : (
+                <CBTResultView 
+                  attemptId={cbtAttemptId} 
+                  onReview={() => {}}
+                  onBackToDashboard={() => {
+                    setCbtModalOpen(false);
+                    setCbtView('exam');
+                    setCbtAttemptId(null);
+                  }}
+                />
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

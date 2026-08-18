@@ -244,23 +244,23 @@ Instructions:
         const recentUserMessages = contents.filter((c: any) => c.role === 'user').slice(-2);
         const queryText = recentUserMessages.map((m: any) => m.parts.map((p: any) => p.text).join(' ')).join(' ');
 
-        // Search for relevant lessons
-        let { data: lessons } = await supabase.rpc('search_lessons_fts', { search_query: queryText });
+        // Search for relevant undergraduate materials
+        let { data: materials } = await supabase.rpc('search_undergraduate_materials_fts', { search_query: queryText });
         
-        if (lessons && lessons.length > 0) {
-          const lessonParts: any[] = [];
-          lessonParts.push({ text: "=== ACADEMIC MANAGEMENT LESSONS (ONLY USE THESE TO ANSWER) ===" });
-          for (const lesson of lessons) {
-             lessonParts.push({ text: `Source:\nFaculty/Subject: ${lesson.subject || 'Unknown'}\nCourse: ${lesson.course || 'Unknown'}\nTopic: ${lesson.topic || 'Unknown'}\nLesson Title: ${lesson.title || 'Unknown'}\nContent:\n${lesson.content || ''}\n---\n` });
+        if (materials && materials.length > 0) {
+          const materialParts: any[] = [];
+          materialParts.push({ text: "=== UNDERGRADUATE ACADEMIC MATERIALS (ONLY USE THESE TO ANSWER) ===" });
+          for (const mat of materials) {
+             materialParts.push({ text: `Source:\nLevel: ${mat.level || '100 Level'}\nCourse Code: ${mat.course_code || 'N/A'}\nCourse Title: ${mat.course_title || 'Unknown'}\nTopic: ${mat.topic_name || 'Unknown'}\nMaterial Title: ${mat.title || 'Unknown'}\nType: ${mat.material_type || 'text'}\nContent:\n${mat.content || ''}\n---\n` });
           }
-          lessonParts.push({ text: "=== END ACADEMIC LESSONS ===" });
-          lessonParts.push({ text: "CRITICAL RAG RULE: You MUST answer the following query ONLY using the information provided in the Academic Management Lessons above. If the lessons do not contain the answer, you MUST reply exactly with: 'I couldn't find this topic in your academy materials.' Do not fabricate answers. When answering from the materials, you MUST include a citation at the end of your response in the format: 'This answer came from: [Faculty/Subject] -> [Course] -> [Topic] -> [Lesson Title]'.\n\n" });
+          materialParts.push({ text: "=== END ACADEMIC MATERIALS ===" });
+          materialParts.push({ text: "CRITICAL ANTI-FABRICATION RULE: You MUST strictly distinguish between information found in the retrieved undergraduate academy materials above and information that is absent. If the question can be answered using the retrieved materials, you may explain, summarize, or reorganize the information clearly, and you MUST append a clean citation block at the end in the exact breadcrumb format:\n\n**Source:**\n[Level] → [Course Code] - [Course Title] → [Topic] → [Material Title]\n\nIf the answer CANNOT be fully supported by the retrieved academy materials (or if no materials match), you MUST reply EXACTLY with: 'I couldn't find this topic in your academy materials.' \n\nDo NOT invent answers, do NOT pretend the academy contains information it does not, do NOT invent citations, do NOT cite unrelated materials, and do NOT silently use general model knowledge.\n\n" });
 
           if (contents.length > 0) {
             for (let i = contents.length - 1; i >= 0; i--) {
               if (contents[i].role === 'user') {
                 contents[i].parts = [
-                  ...lessonParts,
+                  ...materialParts,
                   ...contents[i].parts
                 ];
                 break;
@@ -268,12 +268,12 @@ Instructions:
             }
           }
         } else {
-          // No lessons match
+          // No published materials match
           if (contents.length > 0) {
             for (let i = contents.length - 1; i >= 0; i--) {
               if (contents[i].role === 'user') {
                 contents[i].parts = [
-                  { text: "CRITICAL RAG RULE: No additional academy lessons matched this specific query. You MUST answer this query based ONLY on the context established in the previous messages of this conversation. If the answer cannot be found in the previous discussion or lessons, you MUST reply exactly with: 'I couldn't find this topic in your academy materials.' Do not fabricate answers.\n\n" },
+                  { text: "CRITICAL RAG RULE: No published undergraduate materials matched this query. You MUST reply exactly with: 'I couldn't find this topic in your academy materials.' Do not fabricate an answer or use external knowledge.\n\n" },
                   ...contents[i].parts
                 ];
                 break;
@@ -318,7 +318,301 @@ Instructions:
     }
   });
 
-    // Vite middleware for development
+    
+  // CBT Routes
+  app.post('/api/cbt/start', async (req, res) => {
+    try {
+      const { courseCode, topics, limit } = req.body;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Missing authorization header' });
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const sb = createClient(process.env.VITE_SUPABASE_URL as string, process.env.VITE_SUPABASE_PUBLISHABLE_KEY as string, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: userResponse, error: userErr } = await sb.auth.getUser();
+      if (userErr || !userResponse?.user) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+
+      // Fetch exams for the course
+      let examsQuery = sb.from('cbt_exams').select('id').eq('course_code', courseCode).eq('is_published', true);
+      if (topics && topics.length > 0) {
+        examsQuery = examsQuery.in('topic', topics);
+      }
+      const { data: exams, error: examsErr } = await examsQuery;
+      if (examsErr) throw examsErr;
+
+      if (!exams || exams.length === 0) {
+        return res.json({ attemptId: null, questions: [] });
+      }
+
+      const examIds = exams.map(e => e.id);
+
+      // Fetch questions for those exams
+      const { data: questions, error: qErr } = await sb.from('cbt_questions')
+        .select('id, exam_id, question_text, option_a, option_b, option_c, option_d, marks, topic, difficulty') // omit correct_option and explanation
+        .in('exam_id', examIds);
+      
+      if (qErr) throw qErr;
+
+      // Shuffle and limit
+      let finalQuestions = questions || [];
+      finalQuestions = finalQuestions.sort(() => 0.5 - Math.random());
+      if (limit) {
+        finalQuestions = finalQuestions.slice(0, limit);
+      }
+
+      // Create a drill session in DB
+      const { data: attempt, error: attemptErr } = await sb.from('cbt_attempts').insert({
+         exam_id: examIds[0],
+         user_id: userResponse.user.id,
+         status: 'in_progress',
+         answers: { question_ids: finalQuestions.map(q => q.id) }
+      }).select().single();
+
+      if (attemptErr) throw attemptErr;
+
+      res.json({ attemptId: attempt.id, questions: finalQuestions });
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/cbt/submit', async (req, res) => {
+    try {
+      const { attemptId, answers } = req.body;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Missing authorization header' });
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const sbClient = createClient(process.env.VITE_SUPABASE_URL as string, process.env.VITE_SUPABASE_PUBLISHABLE_KEY as string, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: attempt, error: attemptErr } = await sbClient.from('cbt_attempts').select('*').eq('id', attemptId).single();
+      if (attemptErr) throw attemptErr;
+
+      if (!attempt.answers || !attempt.answers.question_ids) {
+         return res.status(400).json({ error: 'Invalid attempt' });
+      }
+
+      const qIds = attempt.answers.question_ids;
+
+      const { data: questions, error: qErr } = await sbClient.from('cbt_questions')
+        .select('*')
+        .in('id', qIds);
+      if (qErr) throw qErr;
+
+      let totalCorrect = 0;
+      let score = 0;
+      let totalQuestions = questions.length;
+      let results = [];
+
+      for (const q of questions) {
+        const studentAns = answers[q.id];
+        const isCorrect = studentAns === q.correct_option;
+        if (isCorrect) totalCorrect++;
+        results.push({
+           id: q.id,
+           question_text: q.question_text,
+           option_a: q.option_a,
+           option_b: q.option_b,
+           option_c: q.option_c,
+           option_d: q.option_d,
+           student_answer: studentAns,
+           correct_option: q.correct_option,
+           explanation: q.explanation,
+           is_correct: isCorrect
+        });
+      }
+
+      score = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+
+      // Update attempt
+      const { error: updErr } = await sbClient.from('cbt_attempts').update({
+         status: 'completed',
+         score,
+         total_correct: totalCorrect,
+         total_wrong: totalQuestions - totalCorrect,
+         answers: { ...attempt.answers, student_answers: answers },
+         end_time: new Date().toISOString()
+      }).eq('id', attemptId);
+
+      if (updErr) throw updErr;
+
+      res.json({
+         score,
+         totalCorrect,
+         totalQuestions,
+         results
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  
+  app.get('/api/cbt/exam/:id', async (req, res) => {
+    try {
+      const examId = req.params.id;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Missing authorization header' });
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_PUBLISHABLE_KEY, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: examData } = await sb.from('cbt_exams').select('duration_minutes').eq('id', examId).single();
+      const duration = examData?.duration_minutes ? examData.duration_minutes * 60 : 1800;
+
+      const { data: questions, error: qErr } = await sb.from('cbt_questions')
+        .select('id, exam_id, question_text, option_a, option_b, option_c, option_d, marks, topic, difficulty')
+        .eq('exam_id', examId);
+      
+      if (qErr) throw qErr;
+
+      res.json({ questions: questions || [], duration });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  
+  // UTME CBT Backend Routes
+  app.post('/api/utme/start', async (req, res) => {
+    try {
+      const { subjectId, mode, topicId, count } = req.body;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Missing authorization header' });
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_PUBLISHABLE_KEY, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      let query = sb.from('utme_questions')
+        .select('id, question_text, option_a, option_b, option_c, option_d, difficulty, year')
+        .eq('subject_id', subjectId)
+        .eq('status', 'published');
+
+      if (mode === 'topic' && topicId) {
+        query = query.eq('topic_id', topicId);
+      }
+
+      const { data: questions, error } = await query;
+      if (error) throw error;
+
+      let shuffled = [...(questions || [])].sort(() => 0.5 - Math.random());
+      if (count && count > 0) {
+        shuffled = shuffled.slice(0, count);
+      }
+
+      // Create attempt record
+      const { data: userData } = await sb.auth.getUser();
+      const userId = userData?.user?.id;
+
+      const { data: attempt, error: attemptErr } = await sb.from('utme_attempts').insert([{
+        student_id: userId,
+        subject_id: subjectId,
+        mode,
+        status: 'in_progress',
+        answers: { question_ids: shuffled.map(q => q.id) }
+      }]).select().single();
+
+      if (attemptErr) throw attemptErr;
+
+      res.json({ attemptId: attempt.id, questions: shuffled });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/utme/submit', async (req, res) => {
+    try {
+      const { attemptId, subjectId, mode, answers, timeUsed } = req.body;
+      const authHeader = req.headers.authorization;
+      if (!authHeader) return res.status(401).json({ error: 'Missing authorization header' });
+
+      const { createClient } = await import('@supabase/supabase-js');
+      const sb = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_PUBLISHABLE_KEY, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: attempt, error: attemptErr } = await sb.from('utme_attempts').select('*').eq('id', attemptId).single();
+      if (attemptErr) throw attemptErr;
+
+      const qIds = attempt.answers?.question_ids || [];
+      const { data: questions, error: qErr } = await sb.from('utme_questions').select('*').in('id', qIds);
+      if (qErr) throw qErr;
+
+      let totalCorrect = 0;
+      let totalWrong = 0;
+      let totalUnanswered = 0;
+      let results = [];
+
+      for (const q of questions) {
+        const studentAns = answers[q.id];
+        const isCorrect = studentAns === q.correct_option;
+        if (!studentAns) {
+          totalUnanswered++;
+        } else if (isCorrect) {
+          totalCorrect++;
+        } else {
+          totalWrong++;
+        }
+
+        results.push({
+          id: q.id,
+          question_text: q.question_text,
+          option_a: q.option_a,
+          option_b: q.option_b,
+          option_c: q.option_c,
+          option_d: q.option_d,
+          student_answer: studentAns || null,
+          correct_option: q.correct_option,
+          explanation: q.explanation,
+          is_correct: isCorrect
+        });
+      }
+
+      const totalQuestions = questions.length;
+      const score = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
+
+      // Update attempt
+      await sb.from('utme_attempts').update({
+        status: 'completed',
+        score,
+        total_correct: totalCorrect,
+        total_wrong: totalWrong,
+        total_unanswered: totalUnanswered,
+        percentage: score,
+        time_used: timeUsed,
+        answers: { question_ids: qIds, student_answers: answers }
+      }).eq('id', attemptId);
+
+      res.json({
+        score,
+        totalCorrect,
+        totalWrong,
+        totalUnanswered,
+        totalQuestions,
+        timeUsed,
+        results
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

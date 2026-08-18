@@ -2,7 +2,7 @@ import { useProfile } from '../../lib/useProfile';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, BookOpen, PenTool, FileText, Library, 
-  RefreshCcw, BarChart2, Bot, Bell, User, Settings, LogOut, X, Search, HelpCircle, MessageCircle
+  RefreshCcw, BarChart2, Bot, Bell, User, Settings, LogOut, X, Search, HelpCircle, MessageCircle, Award
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -21,6 +21,7 @@ export default function Sidebar({ isOpen, setIsOpen, onLogout, currentView = 'da
     { icon: BookOpen, label: 'My Courses', id: 'courses' },
     { icon: MessageCircle, label: 'Course Chats', id: 'chats' },
     { icon: PenTool, label: 'CBT Practice', id: 'cbt' },
+    { icon: Award, label: 'UTME CBT', id: 'utme' },
     { icon: FileText, label: 'Past Questions', id: 'past-questions' },
     { icon: Library, label: 'Academic Materials', id: 'academic-materials' },
     { icon: RefreshCcw, label: 'Revision Mode', id: 'revision' },

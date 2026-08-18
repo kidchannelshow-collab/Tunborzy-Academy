@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, Layers, FileText, ArrowLeft, Loader2, PlayCircle, BookMarked, ChevronRight, GraduationCap, ArrowRight } from 'lucide-react';
+import { BookOpen, Layers, FileText, ArrowLeft, Loader2, PlayCircle, BookMarked, ChevronRight, GraduationCap, ArrowRight, AlertCircle, Sparkles, TrendingUp } from 'lucide-react';
 import DashboardLayout from '../dashboard/DashboardLayout';
 import { supabase } from '../../supabaseClient';
 import { useProfile } from '../../lib/useProfile';
 import StudentLessonViewer from '../materials/StudentLessonViewer';
+import CBTExamTaker from '../cbt/CBTExamTaker';
+import CBTResultView from '../cbt/CBTResultView';
 
 interface AcademicMaterialsPageProps {
   onLogout: () => void;
@@ -25,6 +27,10 @@ export default function AcademicMaterialsPage({ onLogout, onNavigate }: Academic
   const [selectedCourse, setSelectedCourse] = useState<any | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [selectedMaterial, setSelectedMaterial] = useState<any | null>(null);
+  const [topicStatuses, setTopicStatuses] = useState<Record<string, { status: 'Needs Review' | 'Practice Recommended' | 'Good' }>>({});
+  const [cbtModalTopic, setCbtModalTopic] = useState<string | null>(null);
+  const [cbtView, setCbtView] = useState<'exam' | 'result'>('exam');
+  const [cbtAttemptId, setCbtAttemptId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLevels();
@@ -119,6 +125,67 @@ export default function AcademicMaterialsPage({ onLogout, onNavigate }: Academic
           materials
         }));
         setTopics(grouped);
+
+        // Evaluate weak topic statuses based on actual CBT performance data
+        if (profile?.id) {
+          const { data: attempts } = await supabase
+            .from('cbt_attempts')
+            .select('*')
+            .eq('user_id', profile.id)
+            .eq('status', 'completed');
+
+          const { data: qData } = await supabase
+            .from('cbt_questions')
+            .select('id, topic')
+            .eq('course_code', course.course_code);
+
+          if (attempts && qData) {
+            const topicQuestionIds = new Map<string, string[]>();
+            qData.forEach(q => {
+              if (q.topic) {
+                if (!topicQuestionIds.has(q.topic)) topicQuestionIds.set(q.topic, []);
+                topicQuestionIds.get(q.topic)!.push(q.id);
+              }
+            });
+
+            const newStatuses: Record<string, { status: 'Needs Review' | 'Practice Recommended' | 'Good' }> = {};
+            
+            topicQuestionIds.forEach((qIds, topicName) => {
+              let topicAttempts = 0;
+              let lowAttempts = 0;
+
+              attempts.forEach(att => {
+                if (att.answers && att.answers.student_answers) {
+                  const studentAns = att.answers.student_answers;
+                  let matchedInAttempt = false;
+
+                  qIds.forEach(qid => {
+                    if (studentAns[qid] !== undefined) {
+                      matchedInAttempt = true;
+                    }
+                  });
+
+                  if (matchedInAttempt) {
+                    topicAttempts++;
+                    if (att.score !== null && att.score < 60) {
+                      lowAttempts++;
+                    }
+                  }
+                }
+              });
+
+              if (topicAttempts >= 1 && lowAttempts >= 1) {
+                newStatuses[topicName] = { status: 'Needs Review' };
+              } else if (topicAttempts === 0) {
+                newStatuses[topicName] = { status: 'Practice Recommended' };
+              } else {
+                newStatuses[topicName] = { status: 'Good' };
+              }
+            });
+
+            setTopicStatuses(newStatuses);
+          }
+        }
       } else {
         setTopics([]);
       }
@@ -320,7 +387,55 @@ export default function AcademicMaterialsPage({ onLogout, onNavigate }: Academic
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-6">
+                  {topics.some(t => topicStatuses[t.name]?.status === 'Needs Review' || topicStatuses[t.name]?.status === 'Practice Recommended') && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-xl">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                          <TrendingUp size={22} />
+                        </div>
+                        <div>
+                          <h3 className="text-base md:text-lg font-bold text-white">Academic Review Recommendations</h3>
+                          <p className="text-xs md:text-sm text-slate-300">Your recent CBT performance suggests reviewing these topics to strengthen understanding.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {topics
+                          .filter(t => topicStatuses[t.name]?.status === 'Needs Review' || topicStatuses[t.name]?.status === 'Practice Recommended')
+                          .map(t => (
+                            <div key={t.name} className="bg-[#0f172a] border border-amber-500/20 rounded-2xl p-5 flex flex-col justify-between gap-4">
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">{selectedCourse.course_code} → {t.name}</span>
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    {topicStatuses[t.name]?.status}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-400">Your recent CBT performance suggests reviewing this topic.</p>
+                              </div>
+                              <div className="flex items-center gap-2 pt-3 border-t border-slate-800/80">
+                                {t.materials.length > 0 && (
+                                  <button
+                                    onClick={() => openLesson(t.name, t.materials[0])}
+                                    className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                  >
+                                    <BookOpen size={14} className="text-indigo-400" /> Review {t.name}
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setCbtModalTopic(t.name)}
+                                  className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                                >
+                                  <Sparkles size={14} /> Practice {t.name}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-4">
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
                     <FileText className="text-indigo-400" size={20} />
                     Course Topics
@@ -328,36 +443,57 @@ export default function AcademicMaterialsPage({ onLogout, onNavigate }: Academic
                   
                   {topics.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4">
-                      {topics.map((topic, index) => (
-                        <div key={topic.name} className="bg-[#0f172a] border border-slate-800 rounded-2xl overflow-hidden">
-                          <div className="p-5 border-b border-slate-800/50 bg-[#1e293b]/30">
-                            <h4 className="text-lg font-bold text-white flex items-center gap-3">
-                              <span className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-sm font-bold">
-                                {index + 1}
-                              </span>
-                              {topic.name}
-                            </h4>
+                      {topics.map((topic, index) => {
+                        const statusInfo = topicStatuses[topic.name];
+                        return (
+                          <div key={topic.name} className="bg-[#0f172a] border border-slate-800 rounded-2xl overflow-hidden">
+                            <div className="p-5 border-b border-slate-800/50 bg-[#1e293b]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <h4 className="text-lg font-bold text-white flex items-center gap-3">
+                                <span className="w-8 h-8 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center text-sm font-bold">
+                                  {index + 1}
+                                </span>
+                                {topic.name}
+                              </h4>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {statusInfo?.status === 'Needs Review' && (
+                                  <span className="px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 text-xs font-bold border border-amber-500/20 flex items-center gap-1.5">
+                                    <AlertCircle size={14} /> Needs Review
+                                  </span>
+                                )}
+                                {statusInfo?.status === 'Practice Recommended' && (
+                                  <span className="px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold border border-blue-500/20 flex items-center gap-1.5">
+                                    <Sparkles size={14} /> Practice Recommended
+                                  </span>
+                                )}
+                                <button
+                                  onClick={() => setCbtModalTopic(topic.name)}
+                                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                                >
+                                  Practice This Topic
+                                </button>
+                              </div>
+                            </div>
+                            <div className="divide-y divide-slate-800/50">
+                              {topic.materials.map((material, mIndex) => (
+                                <button
+                                  key={material.id}
+                                  onClick={() => openLesson(topic.name, material)}
+                                  className="w-full text-left p-5 hover:bg-slate-800/50 transition-colors flex items-center gap-4 group"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <PlayCircle size={20} />
+                                  </div>
+                                  <div className="flex-1">
+                                    <h5 className="font-semibold text-slate-200 group-hover:text-white transition-colors">{material.title || `Lesson ${mIndex + 1}`}</h5>
+                                    <p className="text-xs text-slate-500 mt-1">Read lesson material</p>
+                                  </div>
+                                  <ChevronRight className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          <div className="divide-y divide-slate-800/50">
-                            {topic.materials.map((material, mIndex) => (
-                              <button
-                                key={material.id}
-                                onClick={() => openLesson(topic.name, material)}
-                                className="w-full text-left p-5 hover:bg-slate-800/50 transition-colors flex items-center gap-4 group"
-                              >
-                                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
-                                  <PlayCircle size={20} />
-                                </div>
-                                <div className="flex-1">
-                                  <h5 className="font-semibold text-slate-200 group-hover:text-white transition-colors">{material.title || `Lesson ${mIndex + 1}`}</h5>
-                                  <p className="text-xs text-slate-500 mt-1">Read lesson material</p>
-                                </div>
-                                <ChevronRight className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-12 bg-[#0f172a] border border-slate-800 rounded-2xl">
@@ -365,12 +501,69 @@ export default function AcademicMaterialsPage({ onLogout, onNavigate }: Academic
                       <p className="text-slate-400">Materials for this course are not available yet.</p>
                     </div>
                   )}
+                  </div>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         )}
       </div>
+
+      {cbtModalTopic && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 relative">
+            <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+              <div>
+                <h3 className="text-xl font-bold text-white">Practice Drill: {cbtModalTopic}</h3>
+                <p className="text-slate-400 text-sm">Course: {selectedCourse?.course_code} - {selectedCourse?.title}</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setCbtModalTopic(null);
+                  setCbtView('exam');
+                  setCbtAttemptId(null);
+                }}
+                className="text-slate-400 hover:text-white px-3 py-1 rounded-xl bg-slate-800 font-bold text-sm"
+              >
+                Close
+              </button>
+            </div>
+
+            {cbtView === 'exam' ? (
+              <CBTExamTaker
+                examId="custom-exam-id"
+                attemptId="custom-attempt-id"
+                customConfig={{
+                  backendDrill: true,
+                  level: selectedLevel || profile?.level || '100 Level',
+                  courseCode: selectedCourse?.course_code,
+                  topic: cbtModalTopic,
+                  questionsCount: 10,
+                  time: 15
+                }}
+                onFinish={(attId) => {
+                  setCbtAttemptId(attId);
+                  setCbtView('result');
+                }}
+                onCancel={() => setCbtModalTopic(null)}
+              />
+            ) : (
+              <div className="space-y-6">
+                <CBTResultView 
+                  attemptId={cbtAttemptId || 'custom-attempt-id'} 
+                  onBack={() => {
+                    setCbtModalTopic(null);
+                    setCbtView('exam');
+                    setCbtAttemptId(null);
+                    fetchTopicsAndMaterials(selectedCourse);
+                  }} 
+                  onReview={() => {}} 
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

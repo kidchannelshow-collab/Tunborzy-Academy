@@ -32,24 +32,24 @@ export default function CBTReviewView({ attemptId, onBack }: any) {
             .single();
           if (attemptErr) throw attemptErr;
           
-          // Fetch questions
-          const { data: qs, error: qsErr } = await supabase
-            .from('cbt_questions')
-            .select('*')
-            .eq('exam_id', attempt.exam_id);
-          if (qsErr) throw qsErr;
+          let qs = [];
+          if (attempt.answers && attempt.answers.question_ids) {
+            const { data: qData, error: qsErr } = await supabase
+              .from('cbt_questions')
+              .select('*')
+              .in('id', attempt.answers.question_ids);
+            if (qsErr) throw qsErr;
+            qs = qData || [];
+          } else {
+            const { data: qData, error: qsErr } = await supabase
+              .from('cbt_questions')
+              .select('*')
+              .eq('exam_id', attempt.exam_id);
+            if (qsErr) throw qsErr;
+            qs = qData || [];
+          }
           
-          // Fetch answers
-          const { data: ans, error: ansErr } = await supabase
-            .from('cbt_answers')
-            .select('*')
-            .eq('attempt_id', attemptId);
-          if (ansErr) throw ansErr;
-          
-          const answersMap: Record<string, string> = {};
-          ans?.forEach(a => {
-            answersMap[a.question_id] = a.selected_option;
-          });
+          const answersMap: Record<string, string> = attempt.answers?.student_answers || {};
           
           setResult({ answers: answersMap });
           setQuestions(qs || []);

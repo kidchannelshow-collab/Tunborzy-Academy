@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { BookOpen, PenTool, Library, Bot, FileText, RefreshCcw, BarChart2, MessageCircle } from 'lucide-react';
+import { BookOpen, PenTool, Library, Bot, FileText, RefreshCcw, BarChart2, MessageCircle, Award } from 'lucide-react';
 
 interface QuickActionsProps {
   onNavigate?: (view: string) => void;
@@ -9,7 +9,8 @@ export default function QuickActions({ onNavigate }: QuickActionsProps) {
   const actions = [
     { icon: BookOpen, label: 'Continue Learning', color: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20', id: 'courses' },
     { icon: MessageCircle, label: 'Course Chats', color: 'from-green-400 to-emerald-600', shadow: 'shadow-green-500/20', id: 'chats' },
-    { icon: PenTool, label: 'Take CBT Practice', color: 'from-amber-400 to-amber-600', shadow: 'shadow-amber-500/20', id: 'cbt' },
+    { icon: PenTool, label: 'CBT Drilling', color: 'from-amber-400 to-amber-600', shadow: 'shadow-amber-500/20', id: 'cbt' },
+    { icon: Award, label: 'UTME CBT', color: 'from-emerald-400 to-teal-600', shadow: 'shadow-emerald-500/20', id: 'utme' },
     { icon: Library, label: 'Academic Materials', color: 'from-emerald-400 to-emerald-600', shadow: 'shadow-emerald-500/20', id: 'academic-materials' },
     { icon: Bot, label: 'AI Study Assistant', color: 'from-purple-500 to-fuchsia-600', shadow: 'shadow-purple-500/20', id: 'ai' },
     { icon: FileText, label: 'Past Questions', color: 'from-rose-400 to-rose-600', shadow: 'shadow-rose-500/20', id: 'past-questions' },

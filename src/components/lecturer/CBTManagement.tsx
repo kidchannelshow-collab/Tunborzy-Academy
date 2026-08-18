@@ -18,6 +18,8 @@ export default function CBTManagement() {
   const [editingId, setEditingId] = useState('');
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
+  const [courseCode, setCourseCode] = useState('');
+  const [topic, setTopic] = useState('');
   const [portal, setPortal] = useState('JAMB');
   const [duration, setDuration] = useState(60);
   const [searchQuery, setSearchQuery] = useState('');

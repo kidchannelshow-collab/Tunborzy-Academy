@@ -4,11 +4,14 @@ import Overview from './admin/Overview';
 import UserManagement from './admin/UserManagement';
 import LecturerManagement from './admin/LecturerManagement';
 import CourseManagement from './admin/CourseManagement';
+import UTMEManagement from './utme/UTMEManagement';
+import PostUtmeManagement from './postutme/PostUtmeManagement';
 import AIManagement from './admin/AIManagement';
 import ConversationManagement from './admin/ConversationManagement';
 import AIFeedbackManagement from './admin/AIFeedbackManagement';
 import AIPerformanceDashboard from './admin/AIPerformanceDashboard';
 import Analytics from './admin/Analytics';
+import AdminUndergraduatePerformance from './admin/AdminUndergraduatePerformance';
 import SystemSettings from './admin/SystemSettings';
 import PendingReviews from './admin/PendingReviews';
 import AuditLog from './admin/AuditLog';
@@ -31,6 +34,10 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         return <LecturerManagement />;
       case 'courses':
         return <CourseManagement />;
+      case 'utme':
+        return <UTMEManagement />;
+      case 'post-utme':
+        return <PostUtmeManagement />;
       case 'ai':
         return <AIManagement />;
       case 'conversations':
@@ -41,6 +48,8 @@ export default function AdminDashboard({ onLogout }: AdminDashboardProps) {
         return <AIPerformanceDashboard />;
       case 'analytics':
         return <Analytics />;
+      case 'ug_performance':
+        return <AdminUndergraduatePerformance />;
       case 'reviews':
         return <PendingReviews />;
       case 'settings':

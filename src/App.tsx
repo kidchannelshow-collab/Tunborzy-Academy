@@ -1,3 +1,5 @@
+import UTMECBTPage from './components/UTMECBTPage';
+import UTMEManagement from './components/utme/UTMEManagement';
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import FloatingNotificationButton from "./components/FloatingNotificationButton";
 /**
@@ -42,7 +44,7 @@ import { supabase } from './supabaseClient';
 import { useProfile, getProfileCache } from './lib/useProfile';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'courses' | 'chats' | 'cbt' | 'past-questions' | 'resources' | 'academic-materials' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'courses' | 'chats' | 'cbt' | 'utme' | 'past-questions' | 'resources' | 'academic-materials' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   
   const { profile: userProfile, loading: isLoadingSession } = useProfile();
@@ -289,6 +291,17 @@ export default function App() {
       {currentView === 'help_support' && (
         <HelpSupportPage onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
+
+      {currentView === 'utme' && (
+        userProfile?.role === 'Admin' || userProfile?.role === 'Lecturer' ? (
+          <DashboardLayout onLogout={handleLogout} currentView="utme" onNavigate={handleNavigate}>
+            <UTMEManagement />
+          </DashboardLayout>
+        ) : (
+          <UTMECBTPage onLogout={handleLogout} onNavigate={handleNavigate} />
+        )
+      )}
+
       <GlobalSearch 
         isOpen={isSearchOpen} 
         onClose={() => setIsSearchOpen(false)} 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from './dashboard/DashboardLayout';
 import { useProfile } from '../lib/useProfile';
-import CBTStudentDashboard from './cbt/CBTStudentDashboard';
+import CBTUndergraduateDrilling from './cbt/CBTUndergraduateDrilling';
+import CBTPerformanceAnalytics from './cbt/CBTPerformanceAnalytics';
 import CBTManagement from './lecturer/CBTManagement';
 import CBTExamTaker from './cbt/CBTExamTaker';
 import CBTResultView from './cbt/CBTResultView';
@@ -12,7 +13,7 @@ import { supabase } from '../supabaseClient';
 export default function CBTPracticePage({ onLogout, onNavigate }: { onLogout: () => void, onNavigate?: (view: string) => void }) {
   const { profile, loading } = useProfile();
   
-  const [view, setView] = useState<'dashboard' | 'admin' | 'exam' | 'result' | 'review' | 'custom'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'analytics' | 'admin' | 'exam' | 'result' | 'review' | 'custom'>('dashboard');
   const [activeExamId, setActiveExamId] = useState<string | null>(null);
   const [activeAttemptId, setActiveAttemptId] = useState<string | null>(null);
   const [customConfig, setCustomConfig] = useState<any>(null);
@@ -29,7 +30,7 @@ export default function CBTPracticePage({ onLogout, onNavigate }: { onLogout: ()
 
   
   const handleStartCustom = (config: any) => {
-    setCustomConfig(config);
+    setCustomConfig({ ...config, backendDrill: true });
     setActiveExamId('custom-exam-id');
     setActiveAttemptId('custom-attempt-id');
     setView('exam');
@@ -81,11 +82,29 @@ export default function CBTPracticePage({ onLogout, onNavigate }: { onLogout: ()
 
   return (
     <DashboardLayout onLogout={onLogout} currentView="cbt" onNavigate={onNavigate}>
-      {view === 'custom' && (
-        <CBTCustomBuilder onBack={() => setView('dashboard')} onStartCustom={handleStartCustom} />
-      )}
+      
       {view === 'dashboard' && (
-        <CBTStudentDashboard onStartExam={handleStartExam} onViewResult={handleReviewExam} onOpenCustomBuilder={() => setView('custom')} />
+        <CBTUndergraduateDrilling 
+          onStartDrill={handleStartCustom} 
+          onBack={() => setView('dashboard')} 
+          onViewAnalytics={() => setView('analytics')}
+        />
+      )}
+      {view === 'analytics' && (
+        <div className="max-w-6xl mx-auto py-8 px-4">
+          <div className="mb-6">
+            <button
+              onClick={() => setView('dashboard')}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold transition-colors"
+            >
+              ← Back to Practice Drills
+            </button>
+          </div>
+          <CBTPerformanceAnalytics 
+            onReviewAttempt={handleReviewExam}
+            onStartNewDrill={() => setView('dashboard')}
+          />
+        </div>
       )}
       {view === 'admin' && (
         <CBTManagement />
