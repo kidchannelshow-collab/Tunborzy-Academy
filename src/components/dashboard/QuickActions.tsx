@@ -1,19 +1,24 @@
 import { motion } from 'motion/react';
-import { BookOpen, PenTool, Library, Bot, FileText, RefreshCcw, BarChart2, MessageCircle, Award } from 'lucide-react';
+import { BookOpen, PenTool, RefreshCcw, BarChart2, Award } from 'lucide-react';
+import { useProfile } from '../../lib/useProfile';
 
 interface QuickActionsProps {
   onNavigate?: (view: string) => void;
 }
 
 export default function QuickActions({ onNavigate }: QuickActionsProps) {
+  const { profile } = useProfile();
+  const studentPortal = profile?.portal || 'Undergraduate';
+
+  const cbtAction = studentPortal === 'UTME' 
+    ? { icon: Award, label: 'UTME CBT', color: 'from-emerald-400 to-teal-600', shadow: 'shadow-emerald-500/20', id: 'utme' }
+    : studentPortal === 'Post-UTME'
+    ? { icon: Award, label: 'Post-UTME CBT', color: 'from-emerald-400 to-teal-600', shadow: 'shadow-emerald-500/20', id: 'utme' }
+    : { icon: PenTool, label: 'Undergraduate CBT', color: 'from-amber-400 to-amber-600', shadow: 'shadow-amber-500/20', id: 'cbt' };
+
   const actions = [
-    { icon: BookOpen, label: 'Continue Learning', color: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20', id: 'courses' },
-    { icon: MessageCircle, label: 'Course Chats', color: 'from-green-400 to-emerald-600', shadow: 'shadow-green-500/20', id: 'chats' },
-    { icon: PenTool, label: 'CBT Drilling', color: 'from-amber-400 to-amber-600', shadow: 'shadow-amber-500/20', id: 'cbt' },
-    { icon: Award, label: 'UTME CBT', color: 'from-emerald-400 to-teal-600', shadow: 'shadow-emerald-500/20', id: 'utme' },
-    { icon: Library, label: 'Academic Materials', color: 'from-emerald-400 to-emerald-600', shadow: 'shadow-emerald-500/20', id: 'academic-materials' },
-    { icon: Bot, label: 'AI Study Assistant', color: 'from-purple-500 to-fuchsia-600', shadow: 'shadow-purple-500/20', id: 'ai' },
-    { icon: FileText, label: 'Past Questions', color: 'from-rose-400 to-rose-600', shadow: 'shadow-rose-500/20', id: 'past-questions' },
+    ...(studentPortal !== 'UTME' ? [{ icon: BookOpen, label: 'Academic Materials', color: 'from-blue-500 to-indigo-600', shadow: 'shadow-blue-500/20', id: 'academic-materials' }] : []),
+    cbtAction,
     { icon: RefreshCcw, label: 'Revision Mode', color: 'from-cyan-400 to-cyan-600', shadow: 'shadow-cyan-500/20', id: 'revision' },
     { icon: BarChart2, label: 'Performance Analytics', color: 'from-orange-400 to-orange-600', shadow: 'shadow-orange-500/20', id: 'analytics' },
   ];

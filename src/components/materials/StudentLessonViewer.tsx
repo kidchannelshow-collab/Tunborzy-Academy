@@ -3,7 +3,7 @@ import { motion, useScroll, useSpring, AnimatePresence } from 'motion/react';
 import { 
   ArrowLeft, BookOpen, CheckCircle, Bookmark, Share2, 
   ChevronLeft, ChevronRight, Check, Copy, Maximize,
-  List, X, Play, Music, Lock, Award
+  List, X, Play, Music, Lock, Award, Sparkles
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -36,6 +36,30 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
   const [topicQuestionsCount, setTopicQuestionsCount] = useState<number | null>(null);
   const [cbtView, setCbtView] = useState<'exam' | 'result'>('exam');
   const [cbtAttemptId, setCbtAttemptId] = useState<string | null>(null);
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [aiSummary, setAiSummary] = useState('');
+
+  const handleSummarizeTopic = async () => {
+    setSummaryModalOpen(true);
+    setSummaryLoading(true);
+    try {
+      const rawText = blocks.map(b => b.content).join('\n');
+      const res = await fetch('/api/summarize-lesson', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: material.title, content: rawText })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to generate summary');
+      setAiSummary(data.summary);
+    } catch (err: any) {
+      console.error(err);
+      setAiSummary('Error generating summary: ' + (err.message || 'Unknown error'));
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
 
   // Scroll Progress
   const containerRef = useRef<HTMLDivElement>(null);
@@ -300,6 +324,12 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="hidden md:flex items-center gap-4 text-xs font-bold text-slate-500 uppercase tracking-widest mr-4">
+              <button
+                onClick={handleSummarizeTopic}
+                className="px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-500/20"
+              >
+                <Sparkles size={14} /> Summarize Topic
+              </button>
               <span className="flex items-center gap-1.5"><BookOpen size={14} /> {getEstimatedTime()} MIN READ</span>
             </div>
             <button onClick={() => setIsBookmarked(!isBookmarked)} className={`p-2 rounded-xl transition-colors ${isBookmarked ? 'bg-amber-500/10 text-amber-400' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`} title="Bookmark">
@@ -311,6 +341,58 @@ export default function StudentLessonViewer({ material, onClose, onNavigateToSib
           </div>
         </div>
       </header>
+
+      {/* Summary Modal */}
+      {summaryModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-3xl max-w-2xl w-full p-6 md:p-8 max-h-[85vh] flex flex-col shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-500">
+                  <Sparkles size={18} />
+                </div>
+                <h3 className="text-xl font-display font-bold text-white">AI Revision Summary</h3>
+              </div>
+              <button onClick={() => setSummaryModalOpen(false)} className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-6">
+              <h4 className="text-sm font-semibold text-amber-400 mb-3">{material.title}</h4>
+              {summaryLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full"></div>
+                  <p className="text-slate-400 text-sm font-medium">Synthesizing topic revision summary...</p>
+                </div>
+              ) : (
+                <div className="prose prose-invert prose-slate max-w-none text-slate-300 font-body leading-relaxed text-sm bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{aiSummary}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(aiSummary);
+                  alert('Summary copied to clipboard!');
+                }}
+                disabled={summaryLoading}
+                className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                Copy Summary
+              </button>
+              <button
+                onClick={() => setSummaryModalOpen(false)}
+                className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-sm font-bold transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar relative" ref={containerRef}>

@@ -222,14 +222,36 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
     </div>
   );
 
+  const [selectedNotification, setSelectedNotification] = useState<any | null>(null);
+
+  const filteredNotifications = notifications.filter(n => {
+    if (activeTab === 'unread') return !n.is_read;
+    if (activeTab === 'read') return n.is_read;
+    return true;
+  }).filter(n => {
+    if (!searchQuery) return true;
+    return n.title?.toLowerCase().includes(searchQuery.toLowerCase()) || n.message?.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
+  const handleOpenNotification = async (notif: any) => {
+    setSelectedNotification(notif);
+    if (!notif.is_read) {
+      try {
+        await supabase.from('notifications').update({ is_read: true }).eq('id', notif.id);
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
   const UserView = () => (
     <div className="flex flex-col lg:flex-row gap-8 items-start">
       <div className="w-full lg:w-64 flex-shrink-0 space-y-2 sticky top-24">
         {[
-          { id: 'all', label: 'All Notifications', icon: Bell },
-          { id: 'unread', label: 'Unread', icon: CheckCircle },
-          { id: 'pinned', label: 'Pinned', icon: Pin },
-          { id: 'bookmarked', label: 'Bookmarked', icon: Bookmark },
+          { id: 'all', label: 'All Messages', icon: Bell, count: notifications.length },
+          { id: 'unread', label: 'Unread', icon: CheckCircle, count: notifications.filter(n => !n.is_read).length },
+          { id: 'read', label: 'Read', icon: Eye, count: notifications.filter(n => n.is_read).length },
         ].map(tab => (
           <button 
             key={tab.id}
@@ -241,91 +263,169 @@ export default function AnnouncementCenter({ onBack, onNavigate }: { onBack?: ()
             <div className="flex items-center gap-3">
               <tab.icon size={18} /> {tab.label}
             </div>
-            {tab.id === 'unread' && notifications.filter(n => !n.is_read).length > 0 && <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{notifications.filter(n => !n.is_read).length}</span>}
+            {tab.count > 0 && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${tab.id === 'unread' ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-300'}`}>{tab.count}</span>}
           </button>
         ))}
         
-        <div className="mt-8 pt-6 border-t border-slate-800/50">
+        <div className="mt-8 pt-6 border-t border-slate-800/50 space-y-2">
           <button onClick={async () => {
+             if (!profile) return;
              await supabase.from('notifications').update({ is_read: true }).eq('user_id', profile.id).eq('is_read', false);
-          }} className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+             setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+             showToast('All notifications marked as read', 'success');
+          }} className="w-full text-left px-4 py-2.5 text-sm text-slate-300 hover:text-white hover:bg-slate-800/50 rounded-xl flex items-center gap-2 transition-colors">
             <Check size={16} /> Mark all as read
           </button>
           <button onClick={async () => {
+             if (!profile) return;
              await supabase.from('notifications').delete().eq('user_id', profile.id).eq('is_read', true);
-          }} className="w-full text-left px-4 py-2 text-sm text-slate-400 hover:text-rose-400 flex items-center gap-2 transition-colors">
+             setNotifications(prev => prev.filter(n => !n.is_read));
+             showToast('Cleared read messages', 'success');
+          }} className="w-full text-left px-4 py-2.5 text-sm text-slate-400 hover:text-rose-400 hover:bg-slate-800/50 rounded-xl flex items-center gap-2 transition-colors">
             <Trash2 size={16} /> Clear all read
           </button>
         </div>
       </div>
 
-      <div className="flex-1 w-full space-y-4">
-        {announcements.map(ann => {
-          const style = getCategoryStyle(ann.category || 'General Notice');
-          const Icon = style.icon;
-          return (
-            <motion.div 
-              key={ann.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`bg-[#0f172a]/80 backdrop-blur-md border ${!ann.read ? 'border-indigo-500/30 shadow-lg shadow-indigo-500/5' : 'border-slate-800'} rounded-2xl p-5 relative overflow-hidden group`}
-            >
-              {!ann.read && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>}
-              
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${style.bg} ${style.color}`}>
-                    <Icon size={20} />
-                  </div>
-                  <div>
-                    <h3 className={`text-lg font-bold leading-tight ${!ann.read ? 'text-white' : 'text-slate-300'}`}>
-                      {ann.title}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1 text-xs font-medium text-slate-500">
-                      <span>{ann.category || 'General Notice'}</span>
-                      <span>•</span>
-                      <span>{new Date(ann.created_at).toLocaleDateString()}</span>
-                      {ann.is_pinned && (
-                        <>
-                          <span>•</span>
-                          <span className="text-indigo-400 flex items-center gap-1"><Pin size={10} /> Pinned</span>
-                        </>
-                      )}
+      <div className="flex-1 w-full space-y-3">
+        <div className="bg-[#0f172a]/80 backdrop-blur-md border border-slate-800 rounded-2xl p-4 mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+            <input 
+              type="text" 
+              placeholder="Search notifications and messages..." 
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-[#020617] border border-slate-800 text-white text-sm rounded-xl py-2.5 pl-10 pr-4 focus:outline-none focus:border-indigo-500"
+            />
+          </div>
+        </div>
+
+        {filteredNotifications.length === 0 ? (
+          <div className="text-center py-16 bg-[#0f172a]/60 border border-slate-800 rounded-2xl p-8">
+            <Bell className="mx-auto text-slate-600 mb-4" size={48} />
+            <h3 className="text-lg font-bold text-white mb-1">No notifications yet.</h3>
+            <p className="text-sm text-slate-400">Important updates and messages will appear here.</p>
+          </div>
+        ) : (
+          filteredNotifications.map(notif => {
+            const isUnread = !notif.is_read;
+            return (
+              <motion.div 
+                key={notif.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => handleOpenNotification(notif)}
+                className={`bg-[#0f172a]/80 backdrop-blur-md border ${isUnread ? 'border-indigo-500/40 bg-indigo-500/[0.02]' : 'border-slate-800'} rounded-2xl p-5 relative overflow-hidden group cursor-pointer hover:border-indigo-500/50 transition-all`}
+              >
+                {isUnread && <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>}
+                
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3.5 min-w-0">
+                    <div className={`p-2.5 rounded-xl flex-shrink-0 ${isUnread ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-400'}`}>
+                      <Bell size={20} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
+                          {notif.type || 'System'}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {new Date(notif.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <h3 className={`text-base font-bold truncate ${isUnread ? 'text-white' : 'text-slate-300'}`}>
+                        {notif.title}
+                      </h3>
+                      <p className="text-sm text-slate-400 mt-1 line-clamp-2">
+                        {notif.message}
+                      </p>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {isUnread ? (
+                      <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                    ) : (
+                      <CheckCircle size={16} className="text-slate-600" />
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className={`p-2 rounded-lg transition-colors ${ann.bookmarked ? 'text-amber-400 bg-amber-500/10' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
-                    <Bookmark size={16} fill={ann.bookmarked ? "currentColor" : "none"} />
-                  </button>
-                  <button className="p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
-                    <Share2 size={16} />
-                  </button>
-                  {!!ann.read && (
-                    <button className="p-2 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg transition-colors">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              <div className={`pl-14 text-sm leading-relaxed ${!ann.read ? 'text-slate-300' : 'text-slate-400'}`}>
-                {ann.description}
-              </div>
-              
-              {ann.hasAttachment && (
-                <div className="pl-14 mt-4">
-                  <button className="flex items-center gap-2 px-4 py-2 bg-[#020617] border border-slate-700 hover:border-slate-500 rounded-xl text-sm font-medium text-slate-300 transition-colors">
-                    {ann.hasAttachment === 'pdf' ? <FileText size={16} className="text-rose-400" /> : <ImageIcon size={16} className="text-emerald-400" />}
-                     Attachment
-                    
-                  </button>
-                </div>
-              )}
-            </motion.div>
-          );
-        })}
+              </motion.div>
+            );
+          })
+        )}
       </div>
+
+      {/* Notification Detail Modal */}
+      <AnimatePresence>
+        {selectedNotification && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#020617]/90 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#0f172a] border border-slate-800 rounded-3xl w-full max-w-2xl my-8 overflow-hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                    <Bell size={20} />
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">
+                      {selectedNotification.type || 'System Notice'}
+                    </span>
+                    <p className="text-xs text-slate-500">
+                      {new Date(selectedNotification.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedNotification(null)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <h2 className="text-xl font-bold text-white">{selectedNotification.title}</h2>
+                <div className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap bg-[#020617] border border-slate-800/80 rounded-2xl p-5">
+                  {selectedNotification.message}
+                </div>
+                {selectedNotification.link && (
+                  <div className="pt-2">
+                    <button 
+                      onClick={() => {
+                        if (onNavigate && selectedNotification.link) {
+                          const route = selectedNotification.link.replace('/', '');
+                          onNavigate(route);
+                          setSelectedNotification(null);
+                        }
+                      }}
+                      className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl text-sm font-bold transition-colors shadow-lg shadow-indigo-500/20"
+                    >
+                      View Related Page
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-slate-800 bg-[#0f172a] flex justify-end">
+                <button 
+                  onClick={() => setSelectedNotification(null)}
+                  className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-bold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Crown, Library, RefreshCcw, Bot, FileText, PenTool, CheckCircle2, Loader2 } from 'lucide-react';
+import { Lock, Crown, RefreshCcw, PenTool, CheckCircle2, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useProfile } from '../../lib/useProfile';
 import { supabase } from '../../supabaseClient';
@@ -59,12 +59,8 @@ export default function PremiumFeatures({ onNavigate }: PremiumFeaturesProps) {
   };
 
   const lockedFeatures = [
-    { title: 'Resource Library', icon: Library, desc: 'Access comprehensive study materials and notes.', id: 'resources' },
     { title: 'Revision Mode', icon: RefreshCcw, desc: 'Smart spaced repetition for better retention.', id: 'revision' },
-    { title: 'AI Study Assistant', icon: Bot, desc: '24/7 AI tutor to answer your questions.', id: 'ai' },
-    { title: 'Past Questions', icon: FileText, desc: 'Extensive database of previous exam questions.', id: 'past-questions' },
     { title: 'Premium CBT', icon: PenTool, desc: 'Full-length timed mock exams with analytics.', id: 'cbt' },
-    
   ];
 
   return (

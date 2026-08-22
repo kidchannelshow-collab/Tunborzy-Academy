@@ -15,18 +15,23 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, setIsOpen, onLogout, currentView = 'dashboard', onNavigate }: SidebarProps) {
   const { profile } = useProfile();
-  const menuItems = [
-    { icon: Search, label: 'Global Search', id: 'search' },
+  const studentPortal = profile?.portal || 'Undergraduate';
+  const isStaff = profile?.role === 'Admin' || profile?.role === 'Lecturer';
+
+  const cbtItem = studentPortal === 'UTME' 
+    ? { icon: Award, label: 'UTME CBT', id: 'utme' }
+    : studentPortal === 'Post-UTME'
+    ? { icon: Award, label: 'Post-UTME CBT', id: 'utme' }
+    : { icon: PenTool, label: 'Undergraduate CBT', id: 'cbt' };
+
+  const menuItems = isStaff ? [
+    { icon: LayoutDashboard, label: 'Overview', id: 'overview' },
+  ] : [
     { icon: LayoutDashboard, label: 'Dashboard', id: 'dashboard' },
-    { icon: BookOpen, label: 'My Courses', id: 'courses' },
-    { icon: MessageCircle, label: 'Course Chats', id: 'chats' },
-    { icon: PenTool, label: 'CBT Practice', id: 'cbt' },
-    { icon: Award, label: 'UTME CBT', id: 'utme' },
-    { icon: FileText, label: 'Past Questions', id: 'past-questions' },
-    { icon: Library, label: 'Academic Materials', id: 'academic-materials' },
+    cbtItem,
+    ...(studentPortal !== 'UTME' ? [{ icon: Library, label: 'Academic Materials', id: 'academic-materials' }] : []),
     { icon: RefreshCcw, label: 'Revision Mode', id: 'revision' },
     { icon: BarChart2, label: 'Performance Analytics', id: 'analytics' },
-    { icon: Bot, label: 'AI Study Assistant', id: 'ai' },
     { icon: Bell, label: 'Announcements', id: 'announcements' },
   ];
 
@@ -37,11 +42,6 @@ export default function Sidebar({ isOpen, setIsOpen, onLogout, currentView = 'da
   ];
 
   const handleNavigate = (id: string) => {
-    if (id === 'search') {
-      window.dispatchEvent(new Event('open-global-search'));
-      setIsOpen(false);
-      return;
-    }
     if (onNavigate) {
       onNavigate(id);
     }

@@ -19,23 +19,54 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
   const [selectedSubject, setSelectedSubject] = useState<any | null>(null);
   const [selectedMode, setSelectedMode] = useState<'full' | 'topic' | 'random'>('full');
   const [selectedTopicId, setSelectedTopicId] = useState<string>('');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+  const [availableDifficulties, setAvailableDifficulties] = useState<string[]>([]);
+  const [availableQuestionsCount, setAvailableQuestionsCount] = useState<number>(0);
   const [questionCount, setQuestionCount] = useState(25);
   const [durationMinutes, setDurationMinutes] = useState(30);
 
+  const OFFICIAL_UTME_SUBJECTS = [
+    { id: 'utme_mth', code: 'MTH', name: 'MATHEMATICS', description: 'Core UTME Mathematics covering algebra, calculus, and statistics.' },
+    { id: 'utme_eng', code: 'ENG', name: 'USES OF ENGLISH', description: 'Comprehension, grammar, lexical items, and oral forms.' },
+    { id: 'utme_chm', code: 'CHM', name: 'CHEMISTRY', description: 'Physical, organic, and inorganic chemistry principles.' },
+    { id: 'utme_phy', code: 'PHY', name: 'PHYSICS', description: 'Mechanics, thermodynamics, optics, and electromagnetism.' },
+    { id: 'utme_bio', code: 'BIO', name: 'BIOLOGY', description: 'Cell biology, genetics, ecology, and anatomy.' }
+  ];
+
+  const OFFICIAL_POST_UTME_SUBJECTS = [
+    { id: 'p_eng', code: 'ENG', name: 'USES OF ENGLISH', description: 'Post-UTME Screening Use of English.' },
+    { id: 'p_mth', code: 'MTH', name: 'MATHEMATICS', description: 'Post-UTME Screening Mathematics.' },
+    { id: 'p_gen', code: 'GEN', name: 'GENERAL PAPER', description: 'General aptitude, current affairs, and reasoning.' }
+  ];
+
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [profile]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const isPostUtme = profile?.portal === 'Post-UTME';
+      const defaultSubjects = isPostUtme ? OFFICIAL_POST_UTME_SUBJECTS : OFFICIAL_UTME_SUBJECTS;
+
       // Fetch subjects that have published questions or all active
       const { data: subData } = await supabase
         .from('utme_subjects')
         .select('*')
         .eq('is_active', true);
       
-      setSubjects(subData || []);
+      if (subData && subData.length > 0) {
+        if (isPostUtme) {
+          const filtered = subData.filter(s => ['USES OF ENGLISH', 'MATHEMATICS', 'GENERAL PAPER'].includes(s.name));
+          setSubjects(filtered.length > 0 ? filtered : defaultSubjects);
+        } else {
+          setSubjects(subData);
+        }
+      } else {
+        setSubjects(defaultSubjects);
+      }
 
       // Fetch history for student
       if (profile) {
@@ -49,6 +80,8 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
       }
     } catch (err) {
       console.error(err);
+      const isPostUtme = profile?.portal === 'Post-UTME';
+      setSubjects(isPostUtme ? OFFICIAL_POST_UTME_SUBJECTS : OFFICIAL_UTME_SUBJECTS);
     } finally {
       setLoading(false);
     }
@@ -57,6 +90,8 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
   const handleSelectSubject = async (sub: any) => {
     setSelectedSubject(sub);
     setSelectedTopicId('');
+    setSelectedYear('all');
+    setSelectedDifficulty('all');
     // Fetch topics for this subject
     const { data } = await supabase
       .from('utme_topics')
@@ -64,7 +99,49 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
       .eq('subject_id', sub.id);
     
     setTopics(data || []);
+
+    // Fetch questions for this subject to extract years and difficulties
+    const { data: qData } = await supabase
+      .from('utme_questions')
+      .select('year, difficulty')
+      .eq('subject_id', sub.id)
+      .eq('status', 'published');
+
+    if (qData) {
+      const yrs = Array.from(new Set(qData.map(q => q.year).filter(Boolean))) as string[];
+      setAvailableYears(yrs.sort().reverse());
+      const diffs = Array.from(new Set(qData.map(q => q.difficulty).filter(Boolean))) as string[];
+      setAvailableDifficulties(diffs);
+    }
   };
+
+  useEffect(() => {
+    async function updateCount() {
+      if (!selectedSubject) return;
+      let query = supabase.from('utme_questions')
+        .select('*', { count: 'exact', head: true })
+        .eq('subject_id', selectedSubject.id)
+        .eq('status', 'published');
+
+      if (selectedMode === 'topic' && selectedTopicId) {
+        query = query.eq('topic_id', selectedTopicId);
+      }
+      if (selectedYear !== 'all') {
+        query = query.eq('year', selectedYear);
+      }
+      if (selectedDifficulty !== 'all') {
+        query = query.eq('difficulty', selectedDifficulty);
+      }
+
+      const { count } = await query;
+      const total = count || 0;
+      setAvailableQuestionsCount(total);
+      if (questionCount > total && total > 0) {
+        setQuestionCount(Math.min(25, total));
+      }
+    }
+    updateCount();
+  }, [selectedSubject, selectedMode, selectedTopicId, selectedYear, selectedDifficulty]);
 
   const handleStart = () => {
     if (!selectedSubject) return;
@@ -73,6 +150,8 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
       subjectName: selectedSubject.name,
       mode: selectedMode,
       topicId: selectedTopicId,
+      year: selectedYear,
+      difficulty: selectedDifficulty,
       count: questionCount,
       time: durationMinutes
     });
@@ -216,10 +295,45 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
                         ))}
                       </select>
                     ) : (
-                      <p className="text-sm text-amber-400">No topics available for this subject yet. Defaulting to full drill.</p>
+                      <p className="text-sm text-amber-400">No topics available for this subject yet.</p>
                     )}
                   </div>
                 )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-800">
+                  <div>
+                    <label className="text-sm font-medium text-slate-300 block mb-2">Year Filter</label>
+                    <select
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500 text-sm"
+                    >
+                      <option value="all">All Years</option>
+                      {availableYears.map(yr => (
+                        <option key={yr} value={yr}>{yr}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium text-slate-300 block mb-2">Difficulty</label>
+                    <select
+                      value={selectedDifficulty}
+                      onChange={(e) => setSelectedDifficulty(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-emerald-500 text-sm capitalize"
+                    >
+                      <option value="all">All Difficulties</option>
+                      {availableDifficulties.map(diff => (
+                        <option key={diff} value={diff} className="capitalize">{diff}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-2 text-xs text-slate-400 flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                  <span>Matching Questions Available:</span>
+                  <span className="font-bold text-emerald-400">{availableQuestionsCount} Questions</span>
+                </div>
               </div>
             </div>
 
@@ -234,11 +348,16 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
                   </label>
                   <input
                     type="range"
-                    min="10" max="60" step="5"
+                    min="5" 
+                    max={Math.max(10, availableQuestionsCount || 50)} 
+                    step="5"
                     value={questionCount}
                     onChange={(e) => setQuestionCount(parseInt(e.target.value))}
                     className="w-full accent-emerald-500"
                   />
+                  {availableQuestionsCount === 0 && (
+                    <p className="text-xs text-rose-400 mt-1">No questions match your selected filters.</p>
+                  )}
                 </div>
 
                 <div>
@@ -257,7 +376,7 @@ export default function UTMEDashboard({ onStartExam, onViewHistory }: UTMEDashbo
 
                 <button
                   onClick={handleStart}
-                  disabled={selectedMode === 'topic' && topics.length > 0 && !selectedTopicId}
+                  disabled={(selectedMode === 'topic' && topics.length > 0 && !selectedTopicId) || availableQuestionsCount === 0}
                   className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold rounded-2xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20"
                 >
                   <Play size={20} /> Start UTME Exam

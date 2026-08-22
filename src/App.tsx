@@ -19,12 +19,9 @@ const StudentDashboard = lazy(() => import('./components/StudentDashboard'));
 
 const Login = lazy(() => import('./components/Login'));
 
-const MyCoursesPage = lazy(() => import('./components/MyCoursesPage'));
-const CourseChatSystem = lazy(() => import('./components/CourseChatSystem'));
 const ResourceLibraryPage = lazy(() => import('./components/ResourceLibraryPage'));
 const AcademicMaterialsPage = lazy(() => import('./components/student/AcademicMaterialsPage'));
 const CBTPracticePage = lazy(() => import('./components/CBTPracticePage'));
-const PastQuestionsPage = lazy(() => import('./components/PastQuestionsPage'));
 
 const RevisionModePage = lazy(() => import('./components/RevisionModePage'));
 const PerformanceAnalyticsPage = lazy(() => import('./components/PerformanceAnalyticsPage'));
@@ -37,15 +34,13 @@ const DashboardLayout = lazy(() => import('./components/dashboard/DashboardLayou
 const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
 const AnnouncementCenter = lazy(() => import('./components/AnnouncementCenter'));
 const TunborzyAI = lazy(() => import('./components/TunborzyAI'));
-import GlobalSearch from './components/GlobalSearch';
 const HelpSupportPage = lazy(() => import('./components/HelpSupportPage'));
 import { useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { useProfile, getProfileCache } from './lib/useProfile';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'courses' | 'chats' | 'cbt' | 'utme' | 'past-questions' | 'resources' | 'academic-materials' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [currentView, setCurrentView] = useState<'landing' | 'signup' | 'login' | 'dashboard' | 'cbt' | 'utme' | 'resources' | 'academic-materials' | 'revision' | 'analytics' | 'profile' | 'settings' | 'lecturer_dashboard' | 'admin_dashboard' | 'announcements' | 'ai' | 'help_support'>('landing');
   
   const { profile: userProfile, loading: isLoadingSession } = useProfile();
 
@@ -136,30 +131,7 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleScrollToHash);
   }, [currentView]);
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey && e.key === 'k') || e.key === '/') {
-        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-          return;
-        }
-        e.preventDefault();
-        setIsSearchOpen(true);
-      }
-      if (e.key === 'Escape') {
-        setIsSearchOpen(false);
-      }
-    };
 
-    const handleOpenSearch = () => setIsSearchOpen(true);
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('open-global-search', handleOpenSearch);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('open-global-search', handleOpenSearch);
-    };
-  }, []);
 
   const handleNavigate = (view: string) => {
     
@@ -241,21 +213,13 @@ export default function App() {
       {currentView === 'dashboard' && (
         <StudentDashboard onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
-      {currentView === 'courses' && (
-        <MyCoursesPage onLogout={handleLogout} onOpenChat={() => handleNavigate('chats')} onNavigate={handleNavigate} />
-      )}
-      {currentView === 'chats' && (
-        <ErrorBoundary><CourseChatSystem onLogout={handleLogout} onNavigate={handleNavigate} /></ErrorBoundary>
-      )}
       {currentView === 'cbt' && (
         <CBTPracticePage onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
-      {currentView === 'past-questions' && (
-        <PastQuestionsPage onLogout={handleLogout} onNavigate={handleNavigate} />
-      )}
       {currentView === 'resources' && (
         <ResourceLibraryPage onLogout={handleLogout} onNavigate={handleNavigate} />
-      )}\n      {currentView === 'academic-materials' && (
+      )}
+      {currentView === 'academic-materials' && (
         <AcademicMaterialsPage onLogout={handleLogout} onNavigate={handleNavigate} />
       )}
       {currentView === 'revision' && (
@@ -302,12 +266,6 @@ export default function App() {
         )
       )}
 
-      <GlobalSearch 
-        isOpen={isSearchOpen} 
-        onClose={() => setIsSearchOpen(false)} 
-        onNavigate={handleNavigate}
-        userRole={userProfile?.role?.toLowerCase() || 'student'}
-      />
       {/* Floating Notification Button */}
       {currentView !== 'announcements' && currentView !== 'landing' && currentView !== 'login' && currentView !== 'signup' && (
         <FloatingNotificationButton onClick={() => handleNavigate('announcements')} />

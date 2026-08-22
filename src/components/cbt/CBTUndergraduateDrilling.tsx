@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BookOpen, ChevronRight, ChevronLeft, Target, Play, ShieldAlert, Award } from 'lucide-react';
+import { BookOpen, ChevronRight, ChevronLeft, Target, Play, ShieldAlert, Award, Layers } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 
 interface CBTUndergraduateDrillingProps {
@@ -12,70 +12,52 @@ interface CBTUndergraduateDrillingProps {
 export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewAnalytics }: CBTUndergraduateDrillingProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   
-  const [levels, setLevels] = useState<string[]>([]);
-  const [courses, setCourses] = useState<{ id: string, course_code: string, title: string }[]>([]);
+  const [selectedSemester, setSelectedSemester] = useState<'First Semester' | 'Second Semester' | null>(null);
+  const [courses, setCourses] = useState<{ code: string, title: string, type: 'Academic' | 'CBT-Only' }[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   
-  const [selectedLevel, setSelectedLevel] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Configuration for the drill
   const [questionCount, setQuestionCount] = useState(20);
   const [isTimed, setIsTimed] = useState(true);
   const [timeMinutes, setTimeMinutes] = useState(30);
 
-  useEffect(() => {
-    fetchLevels();
-  }, []);
+  const FIRST_SEMESTER_COURSES = [
+    { code: 'CHM 101', title: 'General Chemistry I', type: 'Academic' as const },
+    { code: 'PHY 101', title: 'General Physics I', type: 'Academic' as const },
+    { code: 'PHY 103', title: 'Physics for Physical Sciences I', type: 'Academic' as const },
+    { code: 'MTH 101', title: 'Elementary Mathematics I', type: 'Academic' as const },
+    { code: 'MTH 103', title: 'Algebra and Trigonometry', type: 'Academic' as const },
+    { code: 'COS 101', title: 'Introduction to Computer Science', type: 'Academic' as const },
+    { code: 'PHY 107', title: 'Practical Physics I (CBT)', type: 'CBT-Only' as const },
+    { code: 'BIO 107', title: 'General Biology Practical I (CBT)', type: 'CBT-Only' as const },
+    { code: 'CHM 107', title: 'Practical Chemistry I (CBT)', type: 'CBT-Only' as const },
+  ];
 
-  const fetchLevels = async () => {
-    setLoading(true);
-    try {
-      // In a real scenario we might get distinct levels from courses that have exams
-      // For this implementation we'll fetch from courses
-      const { data, error } = await supabase
-        .from('courses')
-        .select('portal');
-      
-      if (error) {
-        // Fallback to hardcoded if table missing
-        setLevels(['100 Level', '200 Level', '300 Level', '400 Level']);
-      } else if (data) {
-        const uniqueLevels = Array.from(new Set(data.map(d => d.portal))).filter(Boolean) as string[];
-        setLevels(uniqueLevels.length > 0 ? uniqueLevels : ['100 Level', '200 Level', '300 Level', '400 Level']);
-      }
-    } catch (err) {
-      console.error(err);
-      setLevels(['100 Level', '200 Level', '300 Level', '400 Level']);
-    } finally {
-      setLoading(false);
-    }
+  const SECOND_SEMESTER_COURSES = [
+    { code: 'CHM 102', title: 'General Chemistry II', type: 'Academic' as const },
+    { code: 'PHY 102', title: 'General Physics II', type: 'Academic' as const },
+    { code: 'PHY 104', title: 'Physics for Physical Sciences II', type: 'Academic' as const },
+    { code: 'MTH 102', title: 'Elementary Mathematics II', type: 'Academic' as const },
+    { code: 'MTH 114', title: 'Introduction to Numerical Methods', type: 'Academic' as const },
+    { code: 'CHM 108', title: 'Practical Chemistry II (CBT)', type: 'CBT-Only' as const },
+    { code: 'PHY 108', title: 'Practical Physics II (CBT)', type: 'CBT-Only' as const },
+  ];
+
+  const handleSemesterSelect = (semester: 'First Semester' | 'Second Semester') => {
+    setSelectedSemester(semester);
+    setSelectedCourse(null);
+    setSelectedTopics([]);
+    setCourses(semester === 'First Semester' ? FIRST_SEMESTER_COURSES : SECOND_SEMESTER_COURSES);
+    setStep(2);
   };
 
-  const fetchCourses = async (level: string) => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('courses')
-        .select('id, course_code, title')
-        .eq('portal', level);
-      
-      if (!error && data) {
-        setCourses(data);
-      } else {
-        setCourses([]);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchTopics = async (courseCode: string) => {
+  const handleCourseSelect = async (courseCode: string) => {
+    setSelectedCourse(courseCode);
+    setSelectedTopics([]);
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -95,22 +77,8 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
       setTopics([]);
     } finally {
       setLoading(false);
+      setStep(3);
     }
-  };
-
-  const handleLevelSelect = (level: string) => {
-    setSelectedLevel(level);
-    setSelectedCourse(null);
-    setSelectedTopics([]);
-    fetchCourses(level);
-    setStep(2);
-  };
-
-  const handleCourseSelect = (courseCode: string) => {
-    setSelectedCourse(courseCode);
-    setSelectedTopics([]);
-    fetchTopics(courseCode);
-    setStep(3);
   };
 
   const toggleTopic = (topic: string) => {
@@ -145,7 +113,7 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
           </button>
           <div>
             <h1 className="text-3xl font-display font-bold text-white">Undergraduate CBT Drilling</h1>
-            <p className="text-slate-400">Master your courses with targeted practice sessions</p>
+            <p className="text-slate-400">Master your semester courses with targeted practice sessions</p>
           </div>
         </div>
         {onViewAnalytics && (
@@ -153,7 +121,7 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
             onClick={onViewAnalytics}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-xs font-bold transition-colors flex items-center gap-2 border border-slate-700 shadow-sm"
           >
-            <Award size={16} className="text-amber-400" /> Performance Analytics & History
+            <Award size={16} className="text-amber-400" /> Performance Analytics
           </button>
         )}
       </div>
@@ -175,30 +143,29 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
           >
             <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 text-sm">1</span>
-              Select Your Academic Level
+              Select Semester
             </h2>
             
-            {loading ? (
-              <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full"></div></div>
-            ) : levels.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {levels.map(level => (
-                  <button
-                    key={level}
-                    onClick={() => handleLevelSelect(level)}
-                    className="p-6 bg-[#0f172a] border border-slate-800 hover:border-amber-500/50 rounded-2xl flex items-center justify-between group transition-all"
-                  >
-                    <span className="text-lg font-bold text-slate-300 group-hover:text-white">{level}</span>
-                    <ChevronRight size={20} className="text-slate-600 group-hover:text-amber-500" />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 bg-[#0f172a] border border-slate-800 rounded-2xl">
-                <ShieldAlert size={48} className="mx-auto text-slate-600 mb-4" />
-                <p className="text-slate-400">No levels found. Please check back later.</p>
-              </div>
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {(['First Semester', 'Second Semester'] as const).map(sem => (
+                <button
+                  key={sem}
+                  onClick={() => handleSemesterSelect(sem)}
+                  className="p-8 bg-[#0f172a] border border-slate-800 hover:border-amber-500/50 rounded-2xl flex flex-col items-start group transition-all text-left shadow-lg"
+                >
+                  <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl mb-4 group-hover:bg-amber-500 group-hover:text-slate-950 transition-colors">
+                    <Layers size={28} />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">{sem}</h3>
+                  <p className="text-sm text-slate-400 mb-6">
+                    {sem === 'First Semester' ? 'Access CHM 101, PHY 101, MTH 101, COS 101 & CBT-only practical courses.' : 'Access CHM 102, PHY 102, MTH 102, MTH 114 & CBT-only practical courses.'}
+                  </p>
+                  <span className="text-xs font-bold text-amber-500 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                    Select Semester <ChevronRight size={16} />
+                  </span>
+                </button>
+              ))}
+            </div>
           </motion.div>
         )}
 
@@ -208,39 +175,50 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-4"
+            className="space-y-6"
           >
             <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 text-sm">2</span>
-              Select Course ({selectedLevel})
+              Select Course ({selectedSemester})
             </h2>
 
-            {loading ? (
-              <div className="flex justify-center py-12"><div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full"></div></div>
-            ) : courses.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {courses.map(course => (
-                  <button
-                    key={course.id}
-                    onClick={() => handleCourseSelect(course.course_code)}
-                    className="p-6 bg-[#0f172a] border border-slate-800 hover:border-amber-500/50 rounded-2xl text-left group transition-all"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
-                        {course.course_code}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Academic / Standard Courses</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {courses.filter(c => c.type === 'Academic').map(course => (
+                    <button
+                      key={course.code}
+                      onClick={() => handleCourseSelect(course.code)}
+                      className="p-5 bg-[#0f172a] border border-slate-800 hover:border-amber-500/50 rounded-2xl text-left group transition-all"
+                    >
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded mb-2 inline-block">
+                        {course.code}
                       </span>
-                      <ChevronRight size={20} className="text-slate-600 group-hover:text-amber-500" />
-                    </div>
-                    <h3 className="font-bold text-slate-300 group-hover:text-white">{course.title}</h3>
-                  </button>
-                ))}
+                      <h4 className="font-bold text-slate-200 group-hover:text-white text-sm line-clamp-2">{course.title}</h4>
+                    </button>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="text-center py-12 bg-[#0f172a] border border-slate-800 rounded-2xl">
-                <BookOpen size={48} className="mx-auto text-slate-600 mb-4" />
-                <p className="text-slate-400">No courses available for {selectedLevel}.</p>
+
+              <div>
+                <h3 className="text-sm font-bold text-amber-400 uppercase tracking-wider mb-3">CBT-Only Practical Courses</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {courses.filter(c => c.type === 'CBT-Only').map(course => (
+                    <button
+                      key={course.code}
+                      onClick={() => handleCourseSelect(course.code)}
+                      className="p-5 bg-[#0f172a] border border-amber-500/20 hover:border-amber-500/60 rounded-2xl text-left group transition-all bg-gradient-to-br from-amber-500/5 to-transparent"
+                    >
+                      <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded mb-2 inline-block">
+                        {course.code} (CBT-Only)
+                      </span>
+                      <h4 className="font-bold text-slate-200 group-hover:text-white text-sm line-clamp-2">{course.title}</h4>
+                    </button>
+                  ))}
+                </div>
               </div>
-            )}
+            </div>
           </motion.div>
         )}
 
@@ -261,12 +239,14 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
               <div className="bg-[#0f172a] border border-slate-800 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-medium text-slate-300">Available Topics</h3>
-                  <button 
-                    onClick={() => setSelectedTopics(selectedTopics.length === topics.length ? [] : [...topics])}
-                    className="text-sm text-amber-500 hover:text-amber-400 font-medium"
-                  >
-                    {selectedTopics.length === topics.length ? 'Deselect All' : 'Select All'}
-                  </button>
+                  {topics.length > 0 && (
+                    <button 
+                      onClick={() => setSelectedTopics(selectedTopics.length === topics.length ? [] : [...topics])}
+                      className="text-sm text-amber-500 hover:text-amber-400 font-medium"
+                    >
+                      {selectedTopics.length === topics.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
                 </div>
 
                 {loading ? (
@@ -293,8 +273,9 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
                     ))}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <p className="text-slate-400">No specific topics found. You can still start a drill for the entire course.</p>
+                  <div className="text-center py-8 bg-slate-900/50 rounded-xl border border-slate-800/80 p-6">
+                    <p className="text-slate-300 font-medium mb-1">Full Course Drill Ready</p>
+                    <p className="text-xs text-slate-400">No specific topic tags found. You can start drilling all questions for {selectedCourse}.</p>
                   </div>
                 )}
               </div>
@@ -349,7 +330,7 @@ export default function CBTUndergraduateDrilling({ onStartDrill, onBack, onViewA
                 <button
                   onClick={startDrill}
                   disabled={topics.length > 0 && selectedTopics.length === 0}
-                  className="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-[#0f172a] rounded-xl font-bold transition-colors flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-[#0f172a] rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20"
                 >
                   <Play size={20} />
                   Start Drill Now

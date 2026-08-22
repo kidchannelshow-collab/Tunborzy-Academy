@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { Brain, Target, Users, Zap } from 'lucide-react';
-import featureImage from '../assets/images/regenerated_image_1783921768762.png';
+import featureImage from '../assets/images/regenerated_image_1787091447544.jpg';
 
 const features = [
   {

@@ -1,7 +1,6 @@
 import DashboardLayout from './dashboard/DashboardLayout';
 import ProgressOverview from './dashboard/ProgressOverview';
 import QuickActions from './dashboard/QuickActions';
-import MyCourses from './dashboard/MyCourses';
 import PremiumFeatures from './dashboard/PremiumFeatures';
 import ActivityAndAnnouncements from './dashboard/ActivityAndAnnouncements';
 import { useProfile } from '../lib/useProfile';
@@ -40,7 +39,6 @@ export default function StudentDashboard({ onLogout, onNavigate }: StudentDashbo
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <MyCourses onNavigate={handleNavigate} />
           <PremiumFeatures onNavigate={handleNavigate} />
         </div>
         <div className="lg:col-span-1 space-y-8">

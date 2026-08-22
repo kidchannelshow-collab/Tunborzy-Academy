@@ -1,4 +1,3 @@
-import CourseChatSystem from './CourseChatSystem';
 import { useState } from 'react';
 import LecturerDashboardLayout from './lecturer/LecturerDashboardLayout';
 import Overview from './lecturer/Overview';
@@ -26,8 +25,6 @@ export default function LecturerDashboard({ onLogout, onNavigate }: LecturerDash
         return <Overview />;
       case 'courses':
         return <CourseManagement />;
-      case 'chats':
-        return <CourseChatSystem onNavigate={onNavigate} onLogout={onLogout} />;
       case 'upload':
         return <UploadCenter />;
       case 'cbt':

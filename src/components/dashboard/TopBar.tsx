@@ -1,4 +1,4 @@
-import { Bell, Menu, Settings, Search, User } from 'lucide-react';
+import { Bell, Menu, Settings, User } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useProfile } from '../../lib/useProfile';
 import { useState, useEffect } from 'react';
@@ -87,15 +87,6 @@ export default function TopBar({ onOpenSidebar, studentName, onNavigate }: TopBa
       </div>
 
       <div className="flex items-center gap-3 sm:gap-5">
-        <motion.button 
-          onClick={() => window.dispatchEvent(new Event('open-global-search'))}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="relative p-2.5 text-slate-400 hover:text-white bg-slate-900/50 border border-slate-800 rounded-xl transition-colors hidden sm:flex items-center gap-2"
-        >
-          <Search size={20} />
-          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 hidden lg:block">⌘K</span>
-        </motion.button>
         <motion.button 
           onClick={() => onNavigate && onNavigate('announcements')}
           whileHover={{ scale: 1.05 }}
