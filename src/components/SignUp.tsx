@@ -178,9 +178,25 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
           throw loginError;
         }
         
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
+        let { data: profile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
         if (!profile) {
-           throw new Error('Database Error: Profile missing for existing user.');
+           const profilePayload = {
+             id: loginData.user.id,
+             full_name: name || loginData.user.user_metadata?.full_name || 'User',
+             email,
+             role: role || loginData.user.user_metadata?.role || 'Student',
+             portal: role === 'Student' ? portal : (loginData.user.user_metadata?.portal || 'UTME'),
+             university: role === 'Student' ? university : (loginData.user.user_metadata?.university || null),
+             course: role === 'Student' ? course : (loginData.user.user_metadata?.course || null),
+             student_id: studentId || loginData.user.user_metadata?.student_id || generateStudentId(),
+             created_at: new Date().toISOString()
+           };
+           const { error: upsertErr } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+           if (upsertErr) {
+             throw new Error('Database Error: ' + upsertErr.message);
+           }
+           const { data: freshProfile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
+           profile = freshProfile;
         }
         
         await refreshProfile();
@@ -217,9 +233,25 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
             });
             if (loginError) throw loginError;
             
-            const { data: profile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
+            let { data: profile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
             if (!profile) {
-              throw new Error('Database Error: Profile missing for existing user.');
+              const profilePayload = {
+                id: loginData.user.id,
+                full_name: name || loginData.user.user_metadata?.full_name || 'User',
+                email,
+                role: role || loginData.user.user_metadata?.role || 'Student',
+                portal: role === 'Student' ? portal : (loginData.user.user_metadata?.portal || 'UTME'),
+                university: role === 'Student' ? university : (loginData.user.user_metadata?.university || null),
+                course: role === 'Student' ? course : (loginData.user.user_metadata?.course || null),
+                student_id: studentId || loginData.user.user_metadata?.student_id || generateStudentId(),
+                created_at: new Date().toISOString()
+              };
+              const { error: upsertErr } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
+              if (upsertErr) {
+                throw new Error('Database Error: ' + upsertErr.message);
+              }
+              const { data: freshProfile } = await supabase.from('profiles').select('*').eq('id', loginData.user.id).single();
+              profile = freshProfile;
             }
             await refreshProfile();
             setSuccessMsg('Logged in successfully. Redirecting...');
@@ -283,7 +315,7 @@ export default function SignUp({ onCancel, onSuccess }: SignUpProps) {
         created_at: new Date().toISOString()
       };
       
-      const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
+      const { error: profileError } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' });
 
       if (profileError) {
         throw new Error('Database Error: ' + profileError.message);
